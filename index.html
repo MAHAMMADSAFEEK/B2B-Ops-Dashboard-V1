@@ -1485,7 +1485,6 @@ function povRenderSizePie(counts){
   return `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">${svg}<div style="flex:1;min-width:160px;">${leg}</div></div>`;
 }
 
-  -----
 let _povCache={};
 let _povDelayBucket='';
 function setPOVDelayBucket(b){_povDelayBucket=(_povDelayBucket===b)?'':b;buildPOV();}
@@ -1501,7 +1500,7 @@ const POV_MS_CFG={
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
   pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
   sizecat: {col:null,      all:'All Sizes',      ph:'Search size…',   fixed:SIZE_CATEGORIES},
-  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}}
+  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}
 };
 
 
@@ -2658,7 +2657,7 @@ function pemrShowPE(peName){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')pemrCloseDay();});
 
-function pemrShowDateSummary(dk){
+// function pemrShowDateSummary(dk){
   // ─────────────────────────────────────────────────────────────
 // PEMR Date-Summary — 4-level hierarchy drill-down patch
 // ─────────────────────────────────────────────────────────────
@@ -2869,7 +2868,6 @@ function pemrShowDateSummary(dk){
     ${table}
   </div>`;
   ov.style.display='flex';
-}
 }
 
 function buildPEMR(){
