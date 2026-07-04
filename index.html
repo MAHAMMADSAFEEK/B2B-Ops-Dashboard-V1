@@ -2703,6 +2703,10 @@ function pemrDateExpandAll(){
 function pemrDateCollapseAll(){ _pemrDateExp.clear(); if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk); }
 
 function pemrShowDateSummary(dk){
+ let _pemrDateView='hier';
+function pemrDateSetView(v){_pemrDateView=v;if(_pemrDateDk)pemrShowDateSummary(_pemrDateDk);}
+
+function pemrShowDateSummary(dk){
   const ctx=_pemrCtx; if(!ctx||!ctx.attByPD) return;
   _pemrDateDk=dk;
   const [y,m,d]=dk.split('-').map(Number);
@@ -2710,7 +2714,6 @@ function pemrShowDateSummary(dk){
   const pes=ctx.peNames||[];
   const pr=mm=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm]||(mm?1:0);
 
-  // Per-PE stats + per-project status
   const peStats={};
   let gTotal=0,gUpd=0,gPend=0,gOn=0,gWo=0,gNa=0,gOnLeave=0;
   pes.forEach(pe=>{
@@ -2735,20 +2738,6 @@ function pemrShowDateSummary(dk){
     peStats[pe]=st;
   });
 
-  // Cluster → CM → PE tree
-  const tree={};
-  pes.forEach(pe=>{
-    const c=ctx.peClusterMap[pe]||'(No Cluster)';
-    const cm=ctx.peCityMgrMap[pe]||'(No City Manager)';
-    if(!tree[c]) tree[c]={};
-    if(!tree[c][cm]) tree[c][cm]=[];
-    tree[c][cm].push(pe);
-  });
-
-  const zero=()=>({total:0,updated:0,pending:0,onsite:0,without:0,noact:0});
-  const agg=(dst,src)=>{dst.total+=src.total;dst.updated+=src.updated;dst.pending+=src.pending;dst.onsite+=src.onsite;dst.without+=src.without;dst.noact+=src.noact;return dst;};
-
-  // Metric cards (top of modal)
   const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
     metric('ti-briefcase','Total Projects',gTotal,'Across all PEs','#9b6dff')+
@@ -2759,121 +2748,141 @@ function pemrShowDateSummary(dk){
     metric('ti-alert-triangle','No Activity',gNa,'Project-days','#f5a623')+
     metric('ti-beach','On Leave',gOnLeave,'PEs','#3bc0d8');
 
-  // Colors and icons per level
   const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-  const iconFor={0:'ti-users-group',1:'ti-user-cog',2:'ti-user',3:'ti-building-skyscraper'};
-  const colFor ={0:'#4f8ef7',1:'#9b6dff',2:'#f5a623',3:'#34c98a'};
-  const bgFor  ={0:'rgba(79,142,247,0.06)',1:'rgba(155,109,255,0.05)',2:'rgba(245,166,35,0.05)',3:'transparent'};
 
-  const rowHtml=(level,key,label,counts,expandable,expanded,extra)=>{
-    const indent=level*22;
-    const tg=expandable
-      ? `<button class="hrc-tg" onclick="pemrDateToggle('${escq(key)}')" style="color:${colFor[level]};">${expanded?'−':'+'}</button>`
-      : `<span style="display:inline-block;width:28px;"></span>`;
-    return `<tr style="background:${bgFor[level]};">
-      <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[level]}" style="color:${colFor[level]};font-size:14px;"></i><span style="font-weight:${level===3?500:600};">${pemrEsc(label)}</span></span></td>
-      <td style="text-align:right;font-weight:${level===3?500:600};color:${colFor[level]};">${counts.total||'—'}</td>
-      <td style="text-align:right;color:${counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${counts.updated||'—'}</td>
-      <td style="text-align:right;color:${counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${counts.pending||'—'}</td>
-      <td style="text-align:center;color:${counts.onsite?'#34c98a':'var(--muted)'};">${counts.onsite||'—'}</td>
-      <td style="text-align:center;color:${counts.without?'#3bc0d8':'var(--muted)'};">${counts.without||'—'}</td>
-      <td style="text-align:center;color:${counts.noact?'#f5a623':'var(--muted)'};">${counts.noact||'—'}</td>
-      <td>${extra||''}</td>
-    </tr>`;
-  };
-
-  // Walk tree, honoring expansion state
-  const rows=[];
-  Object.keys(tree).sort().forEach(cluster=>{
-    const cKey='c:'+cluster;
-    const cmsObj=tree[cluster];
-    const cmKeys=Object.keys(cmsObj).sort();
-    const cCounts=zero();
-    cmKeys.forEach(cm=>{ cmsObj[cm].forEach(pe=>agg(cCounts,peStats[pe]||zero())); });
-    const cExp=_pemrDateExp.has(cKey);
-    rows.push(rowHtml(0,cKey,cluster,cCounts,true,cExp,''));
-    if(!cExp) return;
-
-    cmKeys.forEach(cm=>{
-      const cmKey=cKey+'|m:'+cm;
-      const peList=cmsObj[cm];
-      const cmCounts=zero();
-      peList.forEach(pe=>agg(cmCounts,peStats[pe]||zero()));
-      const cmExp=_pemrDateExp.has(cmKey);
-      rows.push(rowHtml(1,cmKey,cm,cmCounts,true,cmExp,''));
-      if(!cmExp) return;
-
-      peList.sort().forEach(pe=>{
-        const peKey=cmKey+'|p:'+pe;
-        const st=peStats[pe]||zero();
-        const peExp=_pemrDateExp.has(peKey);
-        let peStatus='';
-        if(st.onLeave) peStatus='<span class="badge bb">🏖 Leave</span>';
-        else if(st.total===0) peStatus='<span class="badge bgr">—</span>';
-        else if(st.updated===0) peStatus='<span class="badge br">Absent</span>';
-        else if(st.updated>=st.total) peStatus='<span class="badge bg">All Updated</span>';
-        else peStatus='<span class="badge bo">Partial</span>';
-
-        // Custom PE row so name is a clickable link (opens per-day project cards)
-        const indent=2*22;
-        const tg=st.projects.length
-          ? `<button class="hrc-tg" onclick="pemrDateToggle('${escq(peKey)}')" style="color:${colFor[2]};">${peExp?'−':'+'}</button>`
-          : `<span style="display:inline-block;width:28px;"></span>`;
-        const peLink=`<span onclick="pemrShowDay('${escq(pe)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(pe)}</span>`;
-        rows.push(`<tr style="background:${bgFor[2]};">
-          <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[2]}" style="color:${colFor[2]};font-size:14px;"></i><span style="font-weight:600;">${peLink}</span></span></td>
-          <td style="text-align:right;font-weight:600;color:${colFor[2]};">${st.total||'—'}</td>
-          <td style="text-align:right;color:${st.updated?'#34c98a':'var(--muted)'};font-weight:500;">${st.updated||'—'}</td>
-          <td style="text-align:right;color:${st.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${st.pending||'—'}</td>
-          <td style="text-align:center;color:${st.onsite?'#34c98a':'var(--muted)'};">${st.onsite||'—'}</td>
-          <td style="text-align:center;color:${st.without?'#3bc0d8':'var(--muted)'};">${st.without||'—'}</td>
-          <td style="text-align:center;color:${st.noact?'#f5a623':'var(--muted)'};">${st.noact||'—'}</td>
-          <td>${peStatus}</td>
-        </tr>`);
-
-        if(!peExp) return;
-        st.projects.forEach(p=>{
-          const one={total:1,updated:p.status==='pending'?0:1,pending:p.status==='pending'?1:0,onsite:p.status==='onsite'?1:0,without:p.status==='without'?1:0,noact:p.status==='noact'?1:0};
-          let badge='';
-          if(p.status==='onsite')       badge='<span class="badge bg">Onsite</span>';
-          else if(p.status==='without') badge='<span class="badge bb">Without Visit</span>';
-          else if(p.status==='noact')   badge='<span class="badge bo">No Activity</span>';
-          else if(p.status==='pending') badge='<span class="badge br">Pending</span>';
-          else                          badge='<span class="badge bgr">Update</span>';
-          const projLink=`<span onclick="pmrShowDay('${escq(p.pid)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(p.name)}</span>`;
-          const indent3=3*22;
-          rows.push(`<tr>
-            <td style="padding-left:${12+indent3}px;"><span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:28px;"></span><i class="ti ${iconFor[3]}" style="color:${colFor[3]};font-size:14px;"></i><span style="font-weight:500;">${projLink}</span></span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${pemrEsc(p.pid)}</div></td>
-            <td style="text-align:right;font-weight:500;color:${colFor[3]};">1</td>
-            <td style="text-align:right;color:${one.updated?'#34c98a':'var(--muted)'};">${one.updated||'—'}</td>
-            <td style="text-align:right;color:${one.pending?'#e74c3c':'var(--muted)'};">${one.pending||'—'}</td>
-            <td style="text-align:center;color:${one.onsite?'#34c98a':'var(--muted)'};">${one.onsite||'—'}</td>
-            <td style="text-align:center;color:${one.without?'#3bc0d8':'var(--muted)'};">${one.without||'—'}</td>
-            <td style="text-align:center;color:${one.noact?'#f5a623':'var(--muted)'};">${one.noact||'—'}</td>
-            <td>${badge}</td>
-          </tr>`);
+  // ── HIERARCHY VIEW ──
+  function renderHier(){
+    const tree={};
+    pes.forEach(pe=>{
+      const c=ctx.peClusterMap[pe]||'(No Cluster)';
+      const cm=ctx.peCityMgrMap[pe]||'(No City Manager)';
+      if(!tree[c]) tree[c]={};
+      if(!tree[c][cm]) tree[c][cm]=[];
+      tree[c][cm].push(pe);
+    });
+    const zero=()=>({total:0,updated:0,pending:0,onsite:0,without:0,noact:0});
+    const agg=(dst,src)=>{dst.total+=src.total;dst.updated+=src.updated;dst.pending+=src.pending;dst.onsite+=src.onsite;dst.without+=src.without;dst.noact+=src.noact;return dst;};
+    const iconFor={0:'ti-users-group',1:'ti-user-cog',2:'ti-user',3:'ti-building-skyscraper'};
+    const colFor ={0:'#4f8ef7',1:'#9b6dff',2:'#f5a623',3:'#34c98a'};
+    const bgFor  ={0:'rgba(79,142,247,0.06)',1:'rgba(155,109,255,0.05)',2:'rgba(245,166,35,0.05)',3:'transparent'};
+    const rowHtml=(level,key,label,counts,expandable,expanded)=>{
+      const indent=level*22;
+      const tg=expandable?`<button class="hrc-tg" onclick="pemrDateToggle('${escq(key)}')" style="color:${colFor[level]};">${expanded?'−':'+'}</button>`:`<span style="display:inline-block;width:28px;"></span>`;
+      return `<tr style="background:${bgFor[level]};"><td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[level]}" style="color:${colFor[level]};font-size:14px;"></i><span style="font-weight:${level===3?500:600};">${pemrEsc(label)}</span></span></td><td style="text-align:right;font-weight:${level===3?500:600};color:${colFor[level]};">${counts.total||'—'}</td><td style="text-align:right;color:${counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${counts.updated||'—'}</td><td style="text-align:right;color:${counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${counts.pending||'—'}</td><td style="text-align:center;color:${counts.onsite?'#34c98a':'var(--muted)'};">${counts.onsite||'—'}</td><td style="text-align:center;color:${counts.without?'#3bc0d8':'var(--muted)'};">${counts.without||'—'}</td><td style="text-align:center;color:${counts.noact?'#f5a623':'var(--muted)'};">${counts.noact||'—'}</td><td></td></tr>`;
+    };
+    const rows=[];
+    Object.keys(tree).sort().forEach(cluster=>{
+      const cKey='c:'+cluster, cmsObj=tree[cluster], cmKeys=Object.keys(cmsObj).sort(), cCounts=zero();
+      cmKeys.forEach(cm=>cmsObj[cm].forEach(pe=>agg(cCounts,peStats[pe]||zero())));
+      const cExp=_pemrDateExp.has(cKey);
+      rows.push(rowHtml(0,cKey,cluster,cCounts,true,cExp));
+      if(!cExp)return;
+      cmKeys.forEach(cm=>{
+        const cmKey=cKey+'|m:'+cm, peList=cmsObj[cm], cmCounts=zero();
+        peList.forEach(pe=>agg(cmCounts,peStats[pe]||zero()));
+        const cmExp=_pemrDateExp.has(cmKey);
+        rows.push(rowHtml(1,cmKey,cm,cmCounts,true,cmExp));
+        if(!cmExp)return;
+        peList.sort().forEach(pe=>{
+          const peKey=cmKey+'|p:'+pe, st=peStats[pe]||zero(), peExp=_pemrDateExp.has(peKey);
+          let peStatus='';
+          if(st.onLeave)peStatus='<span class="badge bb">🏖 Leave</span>';
+          else if(st.total===0)peStatus='<span class="badge bgr">—</span>';
+          else if(st.updated===0)peStatus='<span class="badge br">Absent</span>';
+          else if(st.updated>=st.total)peStatus='<span class="badge bg">All Updated</span>';
+          else peStatus='<span class="badge bo">Partial</span>';
+          const indent=2*22;
+          const tg=st.projects.length?`<button class="hrc-tg" onclick="pemrDateToggle('${escq(peKey)}')" style="color:${colFor[2]};">${peExp?'−':'+'}</button>`:`<span style="display:inline-block;width:28px;"></span>`;
+          const peLink=`<span onclick="pemrShowDay('${escq(pe)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(pe)}</span>`;
+          rows.push(`<tr style="background:${bgFor[2]};"><td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[2]}" style="color:${colFor[2]};font-size:14px;"></i><span style="font-weight:600;">${peLink}</span></span></td><td style="text-align:right;font-weight:600;color:${colFor[2]};">${st.total||'—'}</td><td style="text-align:right;color:${st.updated?'#34c98a':'var(--muted)'};font-weight:500;">${st.updated||'—'}</td><td style="text-align:right;color:${st.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${st.pending||'—'}</td><td style="text-align:center;color:${st.onsite?'#34c98a':'var(--muted)'};">${st.onsite||'—'}</td><td style="text-align:center;color:${st.without?'#3bc0d8':'var(--muted)'};">${st.without||'—'}</td><td style="text-align:center;color:${st.noact?'#f5a623':'var(--muted)'};">${st.noact||'—'}</td><td>${peStatus}</td></tr>`);
+          if(!peExp)return;
+          st.projects.forEach(p=>{
+            const one={updated:p.status==='pending'?0:1,pending:p.status==='pending'?1:0,onsite:p.status==='onsite'?1:0,without:p.status==='without'?1:0,noact:p.status==='noact'?1:0};
+            let badge='';
+            if(p.status==='onsite')badge='<span class="badge bg">Onsite</span>';
+            else if(p.status==='without')badge='<span class="badge bb">Without Visit</span>';
+            else if(p.status==='noact')badge='<span class="badge bo">No Activity</span>';
+            else if(p.status==='pending')badge='<span class="badge br">Pending</span>';
+            else badge='<span class="badge bgr">Update</span>';
+            const projLink=`<span onclick="pmrShowDay('${escq(p.pid)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(p.name)}</span>`;
+            const indent3=3*22;
+            rows.push(`<tr><td style="padding-left:${12+indent3}px;"><span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:28px;"></span><i class="ti ${iconFor[3]}" style="color:${colFor[3]};font-size:14px;"></i><span style="font-weight:500;">${projLink}</span></span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${pemrEsc(p.pid)}</div></td><td style="text-align:right;font-weight:500;color:${colFor[3]};">1</td><td style="text-align:right;color:${one.updated?'#34c98a':'var(--muted)'};">${one.updated||'—'}</td><td style="text-align:right;color:${one.pending?'#e74c3c':'var(--muted)'};">${one.pending||'—'}</td><td style="text-align:center;color:${one.onsite?'#34c98a':'var(--muted)'};">${one.onsite||'—'}</td><td style="text-align:center;color:${one.without?'#3bc0d8':'var(--muted)'};">${one.without||'—'}</td><td style="text-align:center;color:${one.noact?'#f5a623':'var(--muted)'};">${one.noact||'—'}</td><td>${badge}</td></tr>`);
+          });
         });
       });
     });
-  });
+    const actionBar=`<div style="display:flex;gap:8px;margin:10px 0;"><button class="pe-clr-btn" onclick="pemrDateExpandAll()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button><button class="pe-clr-btn" onclick="pemrDateCollapseAll()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button></div>`;
+    return actionBar+(rows.length?`<div class="table-wrap" style="max-height:48vh;overflow:auto;"><table class="hrc-table" style="font-size:12px;width:100%;"><thead><tr><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`:'<div class="empty">No PEs in view.</div>');
+  }
 
-  const table=rows.length?`<div class="table-wrap" style="margin-top:14px;max-height:52vh;overflow:auto;"><table class="hrc-table" style="font-size:12px;width:100%;">
-    <thead><tr><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th><th>Status</th></tr></thead>
-    <tbody>${rows.join('')}</tbody>
-  </table></div>`:'<div class="empty" style="margin-top:14px;">No PEs in view.</div>';
+  // ── PE-WISE FLAT VIEW ──
+  function renderFlat(){
+    const rows=pes.map(pe=>{
+      const st=peStats[pe]||{total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave:false};
+      let statusKey='none';
+      if(st.onLeave)statusKey='leave';
+      else if(st.total===0)statusKey='none';
+      else if(st.updated===0)statusKey='absent';
+      else if(st.updated>=st.total)statusKey='full';
+      else statusKey='partial';
+      return{pe,st,statusKey,cluster:ctx.peClusterMap[pe]||'—',cityMgr:ctx.peCityMgrMap[pe]||'—'};
+    }).sort((a,b)=>{
+      const ord={full:0,partial:1,absent:2,leave:3,none:4};
+      if(ord[a.statusKey]!==ord[b.statusKey])return ord[a.statusKey]-ord[b.statusKey];
+      if(b.st.updated!==a.st.updated)return b.st.updated-a.st.updated;
+      return a.pe.localeCompare(b.pe);
+    });
+    let fullN=0,partialN=0,absentN=0,leaveN=0;
+    rows.forEach(r=>{if(r.statusKey==='full')fullN++;else if(r.statusKey==='partial')partialN++;else if(r.statusKey==='absent')absentN++;else if(r.statusKey==='leave')leaveN++;});
+    const summary=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin:10px 0 12px;padding:10px 12px;background:var(--surface2);border-radius:8px;">
+      <span>PEs All Updated: <b style="color:#34c98a;">${fullN}</b></span>
+      <span>Partial: <b style="color:#f5a623;">${partialN}</b></span>
+      <span>Absent: <b style="color:#e74c3c;">${absentN}</b></span>
+      <span>On Leave: <b style="color:#3bc0d8;">${leaveN}</b></span>
+    </div>`;
+    const body=rows.map((r,i)=>{
+      let badge='';
+      if(r.statusKey==='leave')badge='<span class="badge bb">🏖 Leave</span>';
+      else if(r.statusKey==='none')badge='<span class="badge bgr">—</span>';
+      else if(r.statusKey==='absent')badge='<span class="badge br">Absent</span>';
+      else if(r.statusKey==='full')badge='<span class="badge bg">All Updated</span>';
+      else badge='<span class="badge bo">Partial</span>';
+      const peLink=`<span onclick="pemrShowDay('${escq(r.pe)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;color:var(--text);font-weight:500;">${pemrEsc(r.pe)}</span>`;
+      return `<tr>
+        <td style="color:var(--muted);text-align:center;">${i+1}</td>
+        <td>${peLink}</td>
+        <td style="font-size:11px;">${pemrEsc(r.cluster)}</td>
+        <td style="font-size:11px;">${pemrEsc(r.cityMgr)}</td>
+        <td style="text-align:right;font-weight:600;color:#4f8ef7;">${r.st.total||'—'}</td>
+        <td style="text-align:right;color:${r.st.updated?'#34c98a':'var(--muted)'};font-weight:500;">${r.st.updated||'—'}</td>
+        <td style="text-align:right;color:${r.st.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.st.pending||'—'}</td>
+        <td style="text-align:center;color:${r.st.onsite?'#34c98a':'var(--muted)'};">${r.st.onsite||'—'}</td>
+        <td style="text-align:center;color:${r.st.without?'#3bc0d8':'var(--muted)'};">${r.st.without||'—'}</td>
+        <td style="text-align:center;color:${r.st.noact?'#f5a623':'var(--muted)'};">${r.st.noact||'—'}</td>
+        <td>${badge}</td>
+      </tr>`;
+    }).join('');
+    return summary+(rows.length?`<div class="table-wrap" style="max-height:48vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th style="text-align:center;">#</th><th>PE Name</th><th>Cluster Head</th><th>City Manager</th><th style="text-align:right;">Total Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`:'<div class="empty">No PEs in view.</div>');
+  }
 
-  const actionBar=`<div style="display:flex;gap:8px;margin-top:10px;"><button class="pe-clr-btn" onclick="pemrDateExpandAll()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button><button class="pe-clr-btn" onclick="pemrDateCollapseAll()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button></div>`;
+  // ── Sub-tab bar ──
+  const tabBar=`<div style="display:flex;gap:6px;margin-top:12px;background:var(--bg2);border-radius:8px;padding:4px;width:fit-content;">
+    <button onclick="pemrDateSetView('hier')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrDateView==='hier'?'var(--accent)':'transparent'};color:${_pemrDateView==='hier'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;"><i class="ti ti-binary-tree"></i> Hierarchy</button>
+    <button onclick="pemrDateSetView('pe')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrDateView==='pe'?'var(--accent)':'transparent'};color:${_pemrDateView==='pe'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:6px;"><i class="ti ti-users"></i> PE-wise</button>
+  </div>`;
+
+  const content=_pemrDateView==='pe'?renderFlat():renderHier();
 
   let ov=document.getElementById('pemr-modal-ov');
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
-  ov.innerHTML=`<div class="pmr-modal" style="max-width:960px;max-height:92vh;display:flex;flex-direction:column;">
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:1000px;max-height:92vh;display:flex;flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
-      <div><div style="font-size:15px;font-weight:600;color:var(--text);">PE Daily Summary — Hierarchy</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${dateLabel} · ${pes.length} PE(s) in view · click + to drill down</div></div>
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">PE Daily Summary</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${dateLabel} · ${pes.length} PE(s) in view</div></div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
     </div>
     <div class="metrics" style="margin-top:8px;">${cards}</div>
-    ${actionBar}
-    ${table}
+    ${tabBar}
+    <div style="overflow:auto;margin-top:8px;">${content}</div>
   </div>`;
   ov.style.display='flex';
 }
