@@ -1817,9 +1817,9 @@ function buildPOV(){
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
   document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Process Start</th><th>Process End</th><th>TAT</th><th>Completion %</th><th>Final Update Stage</th><th>Remarks</th><th>Report</th></tr>';
+  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Process Start</th><th>Process End</th><th>TAT</th><th>Completion %</th><th>Final Update Stage</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
   const tbody=document.getElementById('pov-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="14" class="empty">No projects match the selected filters</td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="15" class="empty">No projects match the selected filters</td></tr>';return;}
   const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
   tbody.innerHTML=sortedRows.map((x,i)=>{
     const city=lv(x,LEAD_COL.CITY)||'—';
@@ -1842,6 +1842,7 @@ function buildPOV(){
     const pctColor=pct>=100?'#34c98a':pct>0?'#f5a623':'#e74c3c';
     const pctCell=`<div style="display:flex;align-items:center;gap:8px;min-width:90px;"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;"><div style="width:${Math.min(pct,100)}%;height:100%;background:${pctColor};border-radius:3px;"></div></div><span style="font-size:12px;font-weight:600;color:${pctColor};min-width:30px;text-align:right;">${pct}%</span></div>`;
     const reportLink=`<a onclick="openProjectSummaryFor('${escId}','${escName}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(79,142,247,0.15);color:#4f8ef7;border:1px solid rgba(79,142,247,0.3);border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;"><i class="ti ti-external-link" style="font-size:12px;"></i>View Summary</a>`;
+    const phaseLink=`<a onclick="openPhaseSummary('${escId}','${escName}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(155,109,255,0.15);color:#9b6dff;border:1px solid rgba(155,109,255,0.3);border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;"><i class="ti ti-stack-2" style="font-size:12px;"></i>Phase Summary</a>`;
     return `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td style="font-size:12px">${city}</td>
@@ -1856,7 +1857,8 @@ function buildPOV(){
       <td>${pctCell}</td>
       <td>${stageBadge}${finalStageTxt}</td>
       <td style="font-size:11px;color:var(--muted)">—</td>
-      <td>${reportLink}</td>
+            <td>${phaseLink}</td>
+      <td>${reportLink}</td> 
     </tr>`;
   }).join('');
 }
@@ -3817,6 +3819,150 @@ function buildHRC(){
     ov.style.display='flex';
   };
 })();
+
+
+  // ── PHASE-WISE PROJECT SUMMARY ────────────────────────────────
+let _phaseExp=new Set();
+function phaseToggle(k){if(_phaseExp.has(k))_phaseExp.delete(k);else _phaseExp.add(k);if(_phaseCurr)openPhaseSummary(_phaseCurr.id,_phaseCurr.name);}
+let _phaseCurr=null;
+
+function openPhaseSummary(projId,projName){
+  _phaseCurr={id:projId,name:projName};
+  const wr=D.workplan.r;
+  const dh=D.dpr.h,dr=D.dpr.r;
+  const D_PLAN=ci(dh,'WorkPlan','plan','work'),D_TASK=ci(dh,'CompletedTask','completed task'),D_PCT=ci(dh,'%','completion','percent'),D_TS=ci(dh,'Timestamp','time'),D_UID=ci(dh,'UniqueID','unique'),D_CID=ci(dh,'ChildID','child');
+  const ah=D.att.h,ar=D.att.r;
+  const A_UID=ci(ah,'UniqueID','unique id'),A_PID=ci(ah,'ProjectID','project id');
+  const attRows=ar.filter(r=>v(r,A_PID)===projId);
+  const uniqueIds=new Set(attRows.map(r=>v(r,A_UID)).filter(Boolean));
+  const dprForProj=dr.filter(r=>{const uid=v(r,D_UID),cid=v(r,D_CID);return uniqueIds.has(uid)||cid.startsWith(projId);});
+  const norm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+
+  // Group workplan items by Phase (col C = index 2)
+  const phases={};
+  wr.filter(x=>(x[0]||'').trim()).forEach(x=>{
+    const plan=(x[0]||'').trim();
+    const phase=(x[2]||'').trim()||'(No Phase)';
+    if(!phases[phase])phases[phase]={items:[]};
+    // match DPR for this workplan item
+    const pn=norm(plan);
+    const matched=dprForProj.filter(r=>{const dp=norm(v(r,D_PLAN));return dp===pn||dp.includes(pn)||pn.includes(dp);});
+    let status='pending',pct=0,startDate=null,endDate=null;
+    if(matched.length){
+      const sorted=[...matched].sort((a,b)=>{const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;return da-db;});
+      const latest=sorted[sorted.length-1];
+      const latestPct=parseFloat(v(latest,D_PCT))||0;
+      const latestTask=v(latest,D_TASK).toLowerCase();
+      const dates=sorted.map(r=>parseDate(v(r,D_TS))).filter(Boolean);
+      startDate=dates[0]||null;endDate=dates[dates.length-1]||null;
+      if(latestTask.includes('complet')||latestPct>=100){status='done';pct=100;}
+      else{status='wip';pct=latestPct;}
+    }
+    phases[phase].items.push({plan,status,pct,startDate,endDate});
+  });
+
+  // Compute per-phase rollup
+  const phaseRows=Object.entries(phases).map(([phase,ph])=>{
+    const total=ph.items.length;
+    const done=ph.items.filter(i=>i.status==='done').length;
+    const wip=ph.items.filter(i=>i.status==='wip').length;
+    const pending=ph.items.filter(i=>i.status==='pending').length;
+    const pctDone=total?Math.round(done/total*100):0;
+    const dates=ph.items.map(i=>i.startDate).filter(Boolean);
+    const eDates=ph.items.map(i=>i.endDate).filter(Boolean);
+    const phStart=dates.length?new Date(Math.min(...dates)):null;
+    const phEnd=eDates.length?new Date(Math.max(...eDates)):null;
+    const tat=phStart&&phEnd?Math.ceil((phEnd-phStart)/(1000*60*60*24))+1:null;
+    let statusKey,statusBadge;
+    if(!done&&!wip){statusKey='pending';statusBadge='<span class="badge bgr">— Pending</span>';}
+    else if(done>=total){statusKey='done';statusBadge='<span class="badge bg">✓ Completed</span>';}
+    else{statusKey='wip';statusBadge='<span class="badge bo">⟳ Work in Process</span>';}
+    return{phase,total,done,wip,pending,pctDone,phStart,phEnd,tat,statusKey,statusBadge,items:ph.items};
+  }).sort((a,b)=>{
+    if(!a.phStart&&!b.phStart)return a.phase.localeCompare(b.phase);
+    if(!a.phStart)return 1;if(!b.phStart)return -1;
+    return a.phStart-b.phStart;
+  });
+
+  const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+
+  const rows=[];
+  phaseRows.forEach((r,i)=>{
+    const key='ph:'+r.phase;
+    const exp=_phaseExp.has(key);
+    const barCol=r.pctDone>=100?'#34c98a':r.pctDone>0?'#f5a623':'#e74c3c';
+    const bar=`<div style="display:flex;align-items:center;gap:8px;min-width:110px;"><div style="flex:1;height:6px;border-radius:3px;background:var(--bg);overflow:hidden;"><div style="width:${r.pctDone}%;height:100%;background:${barCol};border-radius:3px;"></div></div><span style="font-size:11px;font-weight:600;color:${barCol};min-width:32px;text-align:right;">${r.pctDone}%</span></div>`;
+    const tg=`<button class="hrc-tg" onclick="phaseToggle('${escq(key)}')" style="color:#4f8ef7;">${exp?'−':'+'}</button>`;
+    rows.push(`<tr style="background:rgba(79,142,247,0.05);cursor:pointer;" onclick="phaseToggle('${escq(key)}')">
+      <td style="color:var(--muted);text-align:center;">${i+1}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ti-stack-2" style="color:#4f8ef7;font-size:14px;"></i><span style="font-weight:600;">${pemrEsc(r.phase)}</span></span><div style="font-size:10px;color:var(--muted);margin-left:34px;">${r.done}/${r.total} completed · ${r.wip} WIP · ${r.pending} pending</div></td>
+      <td>${r.statusBadge}</td>
+      <td>${bar}</td>
+      <td style="font-size:11px;white-space:nowrap;">${r.phStart?fmtDate(r.phStart):'—'}</td>
+      <td style="font-size:11px;white-space:nowrap;">${r.phEnd?fmtDate(r.phEnd):'—'}</td>
+      <td style="font-size:12px;font-weight:500;">${r.tat!==null?r.tat+'d':'—'}</td>
+    </tr>`);
+    if(exp){
+      r.items.forEach((it,j)=>{
+        const itCol=it.pct>=100?'#34c98a':it.pct>0?'#f5a623':'#e74c3c';
+        let itBadge;
+        if(it.status==='done')itBadge='<span class="badge bg">✓ Completed</span>';
+        else if(it.status==='wip')itBadge='<span class="badge bo">⟳ WIP</span>';
+        else itBadge='<span class="badge bgr">— Pending</span>';
+        const itBar=`<div style="display:flex;align-items:center;gap:8px;min-width:110px;"><div style="flex:1;height:5px;border-radius:3px;background:var(--bg);overflow:hidden;"><div style="width:${it.pct}%;height:100%;background:${itCol};border-radius:3px;"></div></div><span style="font-size:11px;color:${itCol};min-width:32px;text-align:right;">${it.pct}%</span></div>`;
+        const days=it.startDate&&it.endDate?Math.ceil((it.endDate-it.startDate)/(1000*60*60*24))+1:null;
+        rows.push(`<tr><td style="color:var(--muted);text-align:center;font-size:11px;">${j+1}</td>
+          <td style="padding-left:56px;font-size:12px;"><i class="ti ti-arrow-down-right" style="color:var(--muted);font-size:12px;margin-right:4px;"></i>${pemrEsc(it.plan)}</td>
+          <td>${itBadge}</td>
+          <td>${itBar}</td>
+          <td style="font-size:11px;white-space:nowrap;">${it.startDate?fmtDate(it.startDate):'—'}</td>
+          <td style="font-size:11px;white-space:nowrap;">${it.endDate?fmtDate(it.endDate):'—'}</td>
+          <td style="font-size:11px;">${days!==null?days+'d':'—'}</td>
+        </tr>`);
+      });
+    }
+  });
+
+  // Overall summary
+  const totalItems=phaseRows.reduce((s,r)=>s+r.total,0);
+  const totalDone=phaseRows.reduce((s,r)=>s+r.done,0);
+  const totalWip=phaseRows.reduce((s,r)=>s+r.wip,0);
+  const totalPending=phaseRows.reduce((s,r)=>s+r.pending,0);
+  const overallPct=totalItems?Math.round(totalDone/totalItems*100):0;
+  const cards=
+    metric('ti-stack-2','Total Phases',phaseRows.length,'From Workplan sheet','#4f8ef7')+
+    metric('ti-list-check','Total Items',totalItems,'Across all phases','#9b6dff')+
+    metricWithBar('ti-circle-check','Completed',totalDone,`${overallPct}% of items`,'#34c98a',overallPct,'#34c98a')+
+    metric('ti-loader','Work in Process',totalWip,'','#f5a623')+
+    metric('ti-clock','Pending',totalPending,'','#e74c3c');
+
+  const actionBar=`<div style="display:flex;gap:8px;margin:10px 0;"><button class="pe-clr-btn" onclick="phaseExpandAll()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button><button class="pe-clr-btn" onclick="phaseCollapseAll()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button></div>`;
+
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:1000px;max-height:92vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(projName)} — Phase-wise Summary</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Project ID: ${pemrEsc(projId)} · click a phase row to see its workplan items</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div class="metrics" style="margin-top:8px;">${cards}</div>
+    ${actionBar}
+    <div class="table-wrap" style="overflow:auto;max-height:56vh;"><table style="font-size:12px;width:100%;">
+      <thead><tr><th style="text-align:center;width:34px;">#</th><th>Phase / Workplan Item</th><th style="min-width:150px;">Status</th><th style="min-width:140px;">Completion</th><th>Start Date</th><th>End Date</th><th>TAT</th></tr></thead>
+      <tbody>${rows.length?rows.join(''):'<tr><td colspan="7" class="empty">No workplan data</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+function phaseExpandAll(){
+  const wr=D.workplan.r;
+  wr.filter(x=>(x[0]||'').trim()).forEach(x=>{const ph=(x[2]||'').trim()||'(No Phase)';_phaseExp.add('ph:'+ph);});
+  if(_phaseCurr)openPhaseSummary(_phaseCurr.id,_phaseCurr.name);
+}
+function phaseCollapseAll(){_phaseExp.clear();if(_phaseCurr)openPhaseSummary(_phaseCurr.id,_phaseCurr.name);}
+
+  
 
 loadAll();
 </script>
