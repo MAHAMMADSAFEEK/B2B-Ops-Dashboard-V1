@@ -1456,7 +1456,8 @@ const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,CLUSTER:30,CITYMGR:32,PE:34}
 
 
 const SIZE_CATEGORIES=['Micro','Alpha','Beta','Gamma','Omega'];
-const SIZE_CAT_COLORS={Micro:'#3bc0d8',Alpha:'#4f8ef7',Beta:'#f5a623',Gamma:'#34c98a',Omega:'#e0518a'};
+const SIZE_CAT_COLORS={Micro:'#3bc0d8',Alpha:'#4f8ef7',Beta:'#f5a623',Gamma:'#34c98a',Omega:'#e0518a'}; 
+  
 function sizeCategoryOf(row){
   const n=povNum(lv(row,LEAD_COL.SIZE));
   if(n<15)return 'Micro';
