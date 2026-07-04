@@ -4010,10 +4010,10 @@ function showPOTimeline(projId){
   const actualStartRow=m.startDate?`<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--bg2);border-radius:8px;font-size:12px;"><span style="color:var(--muted);"><i class="ti ti-flag-2" style="margin-right:6px;color:#f5a623;"></i>Actual Installation Start</span><b style="color:#f5a623;">${fmtDate(m.startDate)}</b></div>`:'';
   const actualEndRow=m.endDate?`<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--bg2);border-radius:8px;font-size:12px;"><span style="color:var(--muted);"><i class="ti ti-flag-check" style="margin-right:6px;color:#34c98a;"></i>Actual Completion Date</span><b style="color:#34c98a;">${fmtDate(m.endDate)}</b></div>`:'';
 
-  const cards=
-    metric('ti-calendar-event','Project Timeline Start from',startDate?fmtDate(startDate):'—','Lead Tracker · col AL','#4f8ef7')+
-    metric('ti-hourglass','Total Days',days||'—','As per PO · col AM','#9b6dff')+
-    metric('ti-calendar-check','Expected Closure Date',expected?fmtDate(expected):'—','Start + Total Days','#34c98a')+
+const cards=
+    metricDate('ti-calendar-event','Project Timeline Start from',startDate?fmtDate(startDate):'—','Lead Tracker · col AL','#4f8ef7')+
+    metric('ti-hourglass','Total Days',days||'—','As per PO · col Y','#9b6dff')+
+    metricDate('ti-calendar-check','Expected Closure Date',expected?fmtDate(expected):'—','Start + Total Days','#34c98a')+
     (elapsed!==null?metric('ti-clock-play','Days Elapsed',elapsed<0?'—':elapsed+'d','Since timeline start','#f5a623'):'')+
     (remaining!==null?metric(remaining<0?'ti-alert-triangle':'ti-clock-hour-4','Days Remaining',remaining<0?Math.abs(remaining)+'d over':remaining+'d','Vs expected closure',remaining<0?'#e74c3c':'#34c98a'):'');
 
@@ -4021,7 +4021,7 @@ function showPOTimeline(projId){
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
   ov.innerHTML=`<div class="pmr-modal" style="max-width:760px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
-      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(projName)} — PO Timeline</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Project ID: ${pemrEsc(projId)}</div></div>
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(projName)} — ${pemrEsc(lv(row,23))||'—'}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Project ID: ${pemrEsc(projId)}</div></div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
     </div>
     <div class="metrics" style="margin-top:8px;">${cards}</div>
