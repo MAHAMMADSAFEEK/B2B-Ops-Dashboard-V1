@@ -2702,6 +2702,8 @@ function pemrDateExpandAll(){
 }
 function pemrDateCollapseAll(){ _pemrDateExp.clear(); if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk); }
 
+  let _pemrDateView='hier';
+function pemrDateSetView(v){_pemrDateView=v;if(_pemrDateDk)pemrShowDateSummary(_pemrDateDk);}
 
 function pemrShowDateSummary(dk){
   const ctx=_pemrCtx; if(!ctx||!ctx.attByPD) return;
