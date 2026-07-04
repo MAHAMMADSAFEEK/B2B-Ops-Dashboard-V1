@@ -2609,101 +2609,217 @@ function pemrShowPE(peName){
 document.addEventListener('keydown',e=>{if(e.key==='Escape')pemrCloseDay();});
 
 function pemrShowDateSummary(dk){
-  const ctx=_pemrCtx;if(!ctx||!ctx.attByPD)return;
+  // ─────────────────────────────────────────────────────────────
+// PEMR Date-Summary — 4-level hierarchy drill-down patch
+// ─────────────────────────────────────────────────────────────
+// HOW TO APPLY:
+//   1. Open your dashboard HTML file in an editor.
+//   2. Find the existing "function pemrShowDateSummary(dk){" block
+//      (it's the flat PE table version, ~60 lines).
+//   3. Delete that entire function (from "function pemrShowDateSummary(dk){"
+//      through its closing "}" — just before "function buildPEMR(){").
+//   4. Paste EVERYTHING BELOW (the state vars + 3 helpers + the new function)
+//      in its place.
+//   5. Save. Done — no other change needed. Existing calls from the calendar
+//      header (pemrShowDateSummary('yyyy-m-d')) still work.
+// ─────────────────────────────────────────────────────────────
+
+// ── State + helpers for hierarchy expand/collapse ──
+let _pemrDateExp = new Set();   // expanded keys: "c:<cluster>", "c:<cluster>|m:<cm>", "c:<cluster>|m:<cm>|p:<pe>"
+let _pemrDateDk  = null;        // current dateKey being viewed (for re-render on toggle)
+
+function pemrDateToggle(k){
+  if(_pemrDateExp.has(k)) _pemrDateExp.delete(k); else _pemrDateExp.add(k);
+  if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk);
+}
+function pemrDateExpandAll(){
+  const ctx=_pemrCtx; if(!ctx) return;
+  (ctx.peNames||[]).forEach(pe=>{
+    const c=ctx.peClusterMap[pe]||'(No Cluster)';
+    const cm=ctx.peCityMgrMap[pe]||'(No City Manager)';
+    _pemrDateExp.add('c:'+c);
+    _pemrDateExp.add('c:'+c+'|m:'+cm);
+    _pemrDateExp.add('c:'+c+'|m:'+cm+'|p:'+pe);
+  });
+  if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk);
+}
+function pemrDateCollapseAll(){ _pemrDateExp.clear(); if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk); }
+
+function pemrShowDateSummary(dk){
+  const ctx=_pemrCtx; if(!ctx||!ctx.attByPD) return;
+  _pemrDateDk=dk;
   const [y,m,d]=dk.split('-').map(Number);
   const dateLabel=new Date(y,m-1,d).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
   const pes=ctx.peNames||[];
   const pr=mm=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm]||(mm?1:0);
 
-  // Aggregate counts
-  let totalProjects=0,projUpdated=0,projPending=0,onsite=0,withoutVisit=0,noActivity=0;
-  let pesUpdated=0,pesAbsent=0,pesLeave=0,pesPartial=0,pesAllUpdated=0;
-  const rows=[];
-
+  // Per-PE stats + per-project status
+  const peStats={};
+  let gTotal=0,gUpd=0,gPend=0,gOn=0,gWo=0,gNa=0,gOnLeave=0;
   pes.forEach(pe=>{
     const pids=ctx.peProjects[pe]||[];
     const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].has(dk));
-    let peUpdated=0,pePending=0,peOnsite=0,peWithout=0,peNoAct=0;
+    if(onLeave) gOnLeave++;
+    const st={total:pids.length,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave,projects:[]};
     pids.forEach(pid=>{
-      totalProjects++;
+      gTotal++;
       const arows=ctx.attByPD[pid+'|'+dk];
-      if(!arows||!arows.length){projPending++;pePending++;return;}
-      projUpdated++;peUpdated++;
+      const nm=ctx.projName[pid]||pid;
+      if(!arows||!arows.length){ st.pending++; gPend++; st.projects.push({pid,name:nm,status:'pending'}); return; }
+      st.updated++; gUpd++;
       let chosen=null,mNorm='';
       arows.forEach(r=>{const mm=v(r,ATT_COL.M).toLowerCase();if(!chosen||pr(mm)>pr(mNorm)){chosen=r;mNorm=mm;}});
-      if(mNorm==='no activity'){noActivity++;peNoAct++;}
-      else if(mNorm==='onsite visit'){onsite++;peOnsite++;}
-      else if(mNorm==='without visit update'){withoutVisit++;peWithout++;}
+      let status='other';
+      if(mNorm==='onsite visit'){ st.onsite++; gOn++; status='onsite'; }
+      else if(mNorm==='without visit update'){ st.without++; gWo++; status='without'; }
+      else if(mNorm==='no activity'){ st.noact++; gNa++; status='noact'; }
+      st.projects.push({pid,name:nm,status});
     });
-    if(onLeave)pesLeave++;
-    else if(peUpdated===0)pesAbsent++;
-    else if(peUpdated>=pids.length&&pids.length>0)pesAllUpdated++;
-    else pesPartial++;
-    if(peUpdated>0)pesUpdated++;
-    rows.push({pe,cluster:ctx.peClusterMap[pe]||'',citymgr:ctx.peCityMgrMap[pe]||'',total:pids.length,updated:peUpdated,pending:pePending,onsite:peOnsite,without:peWithout,noact:peNoAct,onLeave});
+    peStats[pe]=st;
   });
 
-  // sort: all-updated > partial > leave > absent; within each, by updated count desc, name asc
-  const rank=r=>r.total===0?4:(r.onLeave?3:(r.updated===0?2:(r.updated>=r.total?0:1)));
-  rows.sort((a,b)=>{const ra=rank(a),rb=rank(b);if(ra!==rb)return ra-rb;if(b.updated!==a.updated)return b.updated-a.updated;return a.pe.localeCompare(b.pe);});
+  // Cluster → CM → PE tree
+  const tree={};
+  pes.forEach(pe=>{
+    const c=ctx.peClusterMap[pe]||'(No Cluster)';
+    const cm=ctx.peCityMgrMap[pe]||'(No City Manager)';
+    if(!tree[c]) tree[c]={};
+    if(!tree[c][cm]) tree[c][cm]=[];
+    tree[c][cm].push(pe);
+  });
 
+  const zero=()=>({total:0,updated:0,pending:0,onsite:0,without:0,noact:0});
+  const agg=(dst,src)=>{dst.total+=src.total;dst.updated+=src.updated;dst.pending+=src.pending;dst.onsite+=src.onsite;dst.without+=src.without;dst.noact+=src.noact;return dst;};
+
+  // Metric cards (top of modal)
   const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
-    metric('ti-briefcase','Total Projects',totalProjects,'Across all PEs','#9b6dff')+
-    metricWithBar('ti-calendar-check','Updated',projUpdated,`${totalProjects?Math.round(projUpdated/totalProjects*100):0}% project-days`,'#34c98a',totalProjects?projUpdated/totalProjects*100:0,'#34c98a')+
-    metricWithBar('ti-calendar-x','Pending',projPending,`${totalProjects?Math.round(projPending/totalProjects*100):0}% project-days`,'#e74c3c',totalProjects?projPending/totalProjects*100:0,'#e74c3c')+
-    metric('ti-map-pin','Onsite Visit',onsite,'Project-days','#34c98a')+
-    metric('ti-clipboard','Without Visit Update',withoutVisit,'Project-days','#3bc0d8')+
-    metric('ti-alert-triangle','No Activity',noActivity,'Project-days','#f5a623')+
-    metric('ti-beach','On Leave',pesLeave,'PEs','#3bc0d8');
+    metric('ti-briefcase','Total Projects',gTotal,'Across all PEs','#9b6dff')+
+    metricWithBar('ti-calendar-check','Updated',gUpd,`${gTotal?Math.round(gUpd/gTotal*100):0}% project-days`,'#34c98a',gTotal?gUpd/gTotal*100:0,'#34c98a')+
+    metricWithBar('ti-calendar-x','Pending',gPend,`${gTotal?Math.round(gPend/gTotal*100):0}% project-days`,'#e74c3c',gTotal?gPend/gTotal*100:0,'#e74c3c')+
+    metric('ti-map-pin','Onsite Visit',gOn,'Project-days','#34c98a')+
+    metric('ti-clipboard','Without Visit Update',gWo,'Project-days','#3bc0d8')+
+    metric('ti-alert-triangle','No Activity',gNa,'Project-days','#f5a623')+
+    metric('ti-beach','On Leave',gOnLeave,'PEs','#3bc0d8');
 
-  const peBreakdown=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;padding:10px 12px;background:var(--surface2);border-radius:8px;margin-top:10px;">
-    <span>PEs All Updated: <b style="color:#34c98a;">${pesAllUpdated}</b></span>
-    <span>Partial: <b style="color:#f5a623;">${pesPartial}</b></span>
-    <span>Absent: <b style="color:#e74c3c;">${pesAbsent}</b></span>
-    <span>On Leave: <b style="color:#3bc0d8;">${pesLeave}</b></span>
-  </div>`;
+  // Colors and icons per level
+  const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  const iconFor={0:'ti-users-group',1:'ti-user-cog',2:'ti-user',3:'ti-building-skyscraper'};
+  const colFor ={0:'#4f8ef7',1:'#9b6dff',2:'#f5a623',3:'#34c98a'};
+  const bgFor  ={0:'rgba(79,142,247,0.06)',1:'rgba(155,109,255,0.05)',2:'rgba(245,166,35,0.05)',3:'transparent'};
 
-  const tableRows=rows.map((r,i)=>{
-    let statusBadge;
-    if(r.onLeave)statusBadge='<span class="badge bb">🏖 Leave</span>';
-    else if(r.total===0)statusBadge='<span class="badge bgr">—</span>';
-    else if(r.updated===0)statusBadge='<span class="badge br">Absent</span>';
-    else if(r.updated>=r.total)statusBadge='<span class="badge bg">All Updated</span>';
-    else statusBadge='<span class="badge bo">Partial</span>';
-    const peEsc=r.pe.replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `<tr>
-      <td style="color:var(--muted);">${i+1}</td>
-      <td style="font-weight:500;font-size:12px;"><span onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(r.pe)}</span></td>
-      <td style="font-size:11px;color:var(--muted);">${pemrEsc(r.cluster)||'—'}</td>
-      <td style="font-size:11px;color:var(--muted);">${pemrEsc(r.citymgr)||'—'}</td>
-      <td style="text-align:right;font-weight:600;">${r.total}</td>
-      <td style="text-align:right;color:#34c98a;font-weight:600;">${r.updated}</td>
-      <td style="text-align:right;color:#e74c3c;font-weight:600;">${r.pending}</td>
-      <td style="text-align:center;">${r.onsite||'—'}</td>
-      <td style="text-align:center;">${r.without||'—'}</td>
-      <td style="text-align:center;">${r.noact||'—'}</td>
-      <td>${statusBadge}</td>
+  const rowHtml=(level,key,label,counts,expandable,expanded,extra)=>{
+    const indent=level*22;
+    const tg=expandable
+      ? `<button class="hrc-tg" onclick="pemrDateToggle('${escq(key)}')" style="color:${colFor[level]};">${expanded?'−':'+'}</button>`
+      : `<span style="display:inline-block;width:28px;"></span>`;
+    return `<tr style="background:${bgFor[level]};">
+      <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[level]}" style="color:${colFor[level]};font-size:14px;"></i><span style="font-weight:${level===3?500:600};">${pemrEsc(label)}</span></span></td>
+      <td style="text-align:right;font-weight:${level===3?500:600};color:${colFor[level]};">${counts.total||'—'}</td>
+      <td style="text-align:right;color:${counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${counts.updated||'—'}</td>
+      <td style="text-align:right;color:${counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${counts.pending||'—'}</td>
+      <td style="text-align:center;color:${counts.onsite?'#34c98a':'var(--muted)'};">${counts.onsite||'—'}</td>
+      <td style="text-align:center;color:${counts.without?'#3bc0d8':'var(--muted)'};">${counts.without||'—'}</td>
+      <td style="text-align:center;color:${counts.noact?'#f5a623':'var(--muted)'};">${counts.noact||'—'}</td>
+      <td>${extra||''}</td>
     </tr>`;
-  }).join('');
+  };
 
-  const table=rows.length?`<div class="table-wrap" style="margin-top:14px;max-height:48vh;overflow:auto;"><table style="font-size:12px;">
-    <thead><tr><th>#</th><th>PE Name</th><th>Cluster Head</th><th>City Manager</th><th style="text-align:right;">Total Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th><th>Status</th></tr></thead>
-    <tbody>${tableRows}</tbody>
+  // Walk tree, honoring expansion state
+  const rows=[];
+  Object.keys(tree).sort().forEach(cluster=>{
+    const cKey='c:'+cluster;
+    const cmsObj=tree[cluster];
+    const cmKeys=Object.keys(cmsObj).sort();
+    const cCounts=zero();
+    cmKeys.forEach(cm=>{ cmsObj[cm].forEach(pe=>agg(cCounts,peStats[pe]||zero())); });
+    const cExp=_pemrDateExp.has(cKey);
+    rows.push(rowHtml(0,cKey,cluster,cCounts,true,cExp,''));
+    if(!cExp) return;
+
+    cmKeys.forEach(cm=>{
+      const cmKey=cKey+'|m:'+cm;
+      const peList=cmsObj[cm];
+      const cmCounts=zero();
+      peList.forEach(pe=>agg(cmCounts,peStats[pe]||zero()));
+      const cmExp=_pemrDateExp.has(cmKey);
+      rows.push(rowHtml(1,cmKey,cm,cmCounts,true,cmExp,''));
+      if(!cmExp) return;
+
+      peList.sort().forEach(pe=>{
+        const peKey=cmKey+'|p:'+pe;
+        const st=peStats[pe]||zero();
+        const peExp=_pemrDateExp.has(peKey);
+        let peStatus='';
+        if(st.onLeave) peStatus='<span class="badge bb">🏖 Leave</span>';
+        else if(st.total===0) peStatus='<span class="badge bgr">—</span>';
+        else if(st.updated===0) peStatus='<span class="badge br">Absent</span>';
+        else if(st.updated>=st.total) peStatus='<span class="badge bg">All Updated</span>';
+        else peStatus='<span class="badge bo">Partial</span>';
+
+        // Custom PE row so name is a clickable link (opens per-day project cards)
+        const indent=2*22;
+        const tg=st.projects.length
+          ? `<button class="hrc-tg" onclick="pemrDateToggle('${escq(peKey)}')" style="color:${colFor[2]};">${peExp?'−':'+'}</button>`
+          : `<span style="display:inline-block;width:28px;"></span>`;
+        const peLink=`<span onclick="pemrShowDay('${escq(pe)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(pe)}</span>`;
+        rows.push(`<tr style="background:${bgFor[2]};">
+          <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${tg}<i class="ti ${iconFor[2]}" style="color:${colFor[2]};font-size:14px;"></i><span style="font-weight:600;">${peLink}</span></span></td>
+          <td style="text-align:right;font-weight:600;color:${colFor[2]};">${st.total||'—'}</td>
+          <td style="text-align:right;color:${st.updated?'#34c98a':'var(--muted)'};font-weight:500;">${st.updated||'—'}</td>
+          <td style="text-align:right;color:${st.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${st.pending||'—'}</td>
+          <td style="text-align:center;color:${st.onsite?'#34c98a':'var(--muted)'};">${st.onsite||'—'}</td>
+          <td style="text-align:center;color:${st.without?'#3bc0d8':'var(--muted)'};">${st.without||'—'}</td>
+          <td style="text-align:center;color:${st.noact?'#f5a623':'var(--muted)'};">${st.noact||'—'}</td>
+          <td>${peStatus}</td>
+        </tr>`);
+
+        if(!peExp) return;
+        st.projects.forEach(p=>{
+          const one={total:1,updated:p.status==='pending'?0:1,pending:p.status==='pending'?1:0,onsite:p.status==='onsite'?1:0,without:p.status==='without'?1:0,noact:p.status==='noact'?1:0};
+          let badge='';
+          if(p.status==='onsite')       badge='<span class="badge bg">Onsite</span>';
+          else if(p.status==='without') badge='<span class="badge bb">Without Visit</span>';
+          else if(p.status==='noact')   badge='<span class="badge bo">No Activity</span>';
+          else if(p.status==='pending') badge='<span class="badge br">Pending</span>';
+          else                          badge='<span class="badge bgr">Update</span>';
+          const projLink=`<span onclick="pmrShowDay('${escq(p.pid)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(p.name)}</span>`;
+          const indent3=3*22;
+          rows.push(`<tr>
+            <td style="padding-left:${12+indent3}px;"><span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:28px;"></span><i class="ti ${iconFor[3]}" style="color:${colFor[3]};font-size:14px;"></i><span style="font-weight:500;">${projLink}</span></span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${pemrEsc(p.pid)}</div></td>
+            <td style="text-align:right;font-weight:500;color:${colFor[3]};">1</td>
+            <td style="text-align:right;color:${one.updated?'#34c98a':'var(--muted)'};">${one.updated||'—'}</td>
+            <td style="text-align:right;color:${one.pending?'#e74c3c':'var(--muted)'};">${one.pending||'—'}</td>
+            <td style="text-align:center;color:${one.onsite?'#34c98a':'var(--muted)'};">${one.onsite||'—'}</td>
+            <td style="text-align:center;color:${one.without?'#3bc0d8':'var(--muted)'};">${one.without||'—'}</td>
+            <td style="text-align:center;color:${one.noact?'#f5a623':'var(--muted)'};">${one.noact||'—'}</td>
+            <td>${badge}</td>
+          </tr>`);
+        });
+      });
+    });
+  });
+
+  const table=rows.length?`<div class="table-wrap" style="margin-top:14px;max-height:52vh;overflow:auto;"><table class="hrc-table" style="font-size:12px;width:100%;">
+    <thead><tr><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th><th>Status</th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
   </table></div>`:'<div class="empty" style="margin-top:14px;">No PEs in view.</div>';
+
+  const actionBar=`<div style="display:flex;gap:8px;margin-top:10px;"><button class="pe-clr-btn" onclick="pemrDateExpandAll()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button><button class="pe-clr-btn" onclick="pemrDateCollapseAll()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button></div>`;
 
   let ov=document.getElementById('pemr-modal-ov');
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
-  ov.innerHTML=`<div class="pmr-modal" style="max-width:880px;max-height:90vh;display:flex;flex-direction:column;">
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:960px;max-height:92vh;display:flex;flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
-      <div><div style="font-size:15px;font-weight:600;color:var(--text);">PE Daily Summary</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${dateLabel} · ${pes.length} PE(s) in view</div></div>
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">PE Daily Summary — Hierarchy</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${dateLabel} · ${pes.length} PE(s) in view · click + to drill down</div></div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
     </div>
     <div class="metrics" style="margin-top:8px;">${cards}</div>
-    ${peBreakdown}
+    ${actionBar}
     ${table}
   </div>`;
   ov.style.display='flex';
+}
 }
 
 function buildPEMR(){
