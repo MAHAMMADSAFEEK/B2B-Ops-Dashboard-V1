@@ -285,15 +285,15 @@ tr:hover td{background:var(--surface2);}
         <div class="pov-ms" id="pov-ms-pe"></div>
       </div>
       <div class="pe-filter-group">
-
-<div class="pe-filter-group">
-  <label>Size Category</label>
-  <div class="pov-ms" id="pov-ms-sizecat"></div>
-</div>
         
         <label>Project Status</label>
         <div class="pov-ms" id="pov-ms-status"></div>
       </div>
+      <div class="pe-filter-group">
+  <label>Size Category</label>
+  <div class="pov-ms" id="pov-ms-sizecat"></div>
+</div>
+      
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions">
         <span class="spacer"></span>
@@ -3696,6 +3696,117 @@ function buildHRC(){
     </tr>`;
   }).join('');
 }
+
+  // ── POV DRILL-DOWN (click cards / cities / buckets / pie for breakdown) ──
+(function(){
+  const _origBuildPOV=buildPOV;
+  buildPOV=function(){_origBuildPOV.apply(this,arguments);povWireDrill();};
+
+  const METRIC_KEYS=['total','size','notassigned','completed','inprocess','pending'];
+
+  function povWireDrill(){
+    document.querySelectorAll('#pov-metrics .metric').forEach((c,i)=>{
+      if(i>=METRIC_KEYS.length)return;
+      c.style.cursor='pointer';
+      c.title='Click for breakdown';
+      c.onclick=()=>povDrill(METRIC_KEYS[i]);
+    });
+    document.querySelectorAll('#pov-city-table tbody tr').forEach(tr=>{
+      const nm=(tr.cells[0]||{}).textContent;if(!nm)return;
+      tr.style.cursor='pointer';tr.title='Click for breakdown';
+      tr.onclick=(e)=>{e.stopPropagation();povDrill('city:'+nm);};
+    });
+  }
+
+  function povGetMonth(x){
+    const raw=lv(x,37);           // Lead Tracker col AL = index 37
+    if(!raw)return '(No Month)';
+    const d=parseDate(raw);
+    if(d)return d.toLocaleDateString('en-IN',{month:'short',year:'numeric'});
+    return raw;
+  }
+
+  function povGetFilteredProjects(key){
+    const r=D.lead.r;
+    const fCity=_povMS.city,fCluster=_povMS.cluster,fCityMgr=_povMS.citymgr,fPE=_povMS.pe,fStatus=_povMS.status,fSizeCat=_povMS.sizecat;
+    let rows=r.filter(x=>{
+      if(!lv(x,LEAD_COL.PID))return false;
+      if(fCity.size&&!fCity.has(lv(x,LEAD_COL.CITY)))return false;
+      if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
+      if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
+      if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
+      if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
+      if(fStatus.size&&!povProjectStatuses(x).some(t=>fStatus.has(t)))return false;
+      return true;
+    });
+    const today=new Date();today.setHours(0,0,0,0);
+    const bucketOf=(x)=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));if(!m.activityCount||!m.lastActivity)return'upNever';const days=Math.floor((today-m.lastActivity)/(1000*60*60*24));if(days>=30)return'up30';if(days>=15)return'up15';if(days>=7)return'up7';return'upOk';};
+    if(_povDelayBucket)rows=rows.filter(x=>bucketOf(x)===_povDelayBucket);
+    if(key==='notassigned')      rows=rows.filter(x=>!lv(x,LEAD_COL.PE));
+    else if(key==='completed')   rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done');
+    else if(key==='inprocess')   rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='wip');
+    else if(key==='pending')     rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='pending');
+    else if(key.startsWith('city:'))  rows=rows.filter(x=>lv(x,LEAD_COL.CITY)===key.slice(5));
+    else if(key.startsWith('size:'))  rows=rows.filter(x=>sizeCategoryOf(x)===key.slice(5));
+    else if(key.startsWith('bucket:'))rows=rows.filter(x=>bucketOf(x)===key.slice(7));
+    return rows;
+  }
+
+  function povDrillTitle(key){
+    const m={total:'Total Projects',size:'Total Project Size',notassigned:'Not Assigned',completed:'Completed',inprocess:'In Process',pending:'Pending'};
+    if(m[key])return m[key];
+    if(key.startsWith('city:'))return 'Projects in '+key.slice(5);
+    if(key.startsWith('size:'))return key.slice(5)+' Size Projects';
+    if(key.startsWith('bucket:')){const b={up30:'Critically Delayed (30+ days)',up15:'Delayed (15–29 days)',up7:'Delayed (7–14 days)',upOk:'Up to Date',upNever:'Never Updated'};return b[key.slice(7)]||key;}
+    return 'Breakdown';
+  }
+
+  window.povDrill=function(key){
+    const rows=povGetFilteredProjects(key);
+    const title=povDrillTitle(key);
+    const total=rows.length;
+    const totalSize=rows.reduce((s,x)=>s+povNum(lv(x,LEAD_COL.SIZE)),0);
+
+    const bySize={};SIZE_CATEGORIES.forEach(c=>bySize[c]={count:0,size:0});
+    rows.forEach(x=>{const c=sizeCategoryOf(x);bySize[c].count++;bySize[c].size+=povNum(lv(x,LEAD_COL.SIZE));});
+    const byCity={};rows.forEach(x=>{const c=lv(x,LEAD_COL.CITY)||'Unknown';if(!byCity[c])byCity[c]={count:0,size:0};byCity[c].count++;byCity[c].size+=povNum(lv(x,LEAD_COL.SIZE));});
+    const byMonth={};rows.forEach(x=>{const m=povGetMonth(x);if(!byMonth[m])byMonth[m]={count:0,size:0};byMonth[m].count++;byMonth[m].size+=povNum(lv(x,LEAD_COL.SIZE));});
+
+    const tbl=(entries,lbl,colorMap)=>{
+      if(!entries.length)return '<div class="empty" style="padding:16px;">No data</div>';
+      return `<div class="table-wrap"><table style="font-size:12px;width:100%;">
+        <thead><tr><th>${lbl}</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Size (kW)</th><th style="text-align:right;">%</th></tr></thead>
+        <tbody>${entries.map(([k,v])=>{
+          const pct=total?Math.round(v.count/total*100):0;
+          const sw=colorMap&&colorMap[k]?`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colorMap[k]};margin-right:6px;vertical-align:middle;"></span>`:'';
+          return `<tr><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;">${v.count}</td><td style="text-align:right;color:var(--muted);">${Math.round(v.size).toLocaleString()}</td><td style="text-align:right;color:var(--muted);">${pct}%</td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr style="border-top:1px solid var(--border2);"><td style="font-weight:700;">Total</td><td style="text-align:right;font-weight:700;">${total}</td><td style="text-align:right;font-weight:700;">${Math.round(totalSize).toLocaleString()}</td><td></td></tr></tfoot>
+      </table></div>`;
+    };
+
+    const sizeEntries=SIZE_CATEGORIES.map(c=>[c,bySize[c]]).filter(([,v])=>v.count);
+    const cityEntries=Object.entries(byCity).sort((a,b)=>b[1].count-a[1].count);
+    const monthEntries=Object.entries(byMonth).sort((a,b)=>{const da=parseDate(a[0]),db=parseDate(b[0]);if(da&&db)return db-da;return a[0].localeCompare(b[0]);});
+
+    const sect=(icon,t,inner)=>`<div style="margin-top:14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i class="ti ${icon}"></i>${t}</div>${inner}</div>`;
+
+    let ov=document.getElementById('pemr-modal-ov');
+    if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+    ov.innerHTML=`<div class="pmr-modal" style="max-width:820px;max-height:90vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+        <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(title)} — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${total} project(s) · ${Math.round(totalSize).toLocaleString()} kW total</div></div>
+        <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <div style="overflow:auto;">
+        ${sect('ti-ruler-2','By Size Category',tbl(sizeEntries,'Size Category',SIZE_CAT_COLORS))}
+        ${sect('ti-building','By City',tbl(cityEntries,'City'))}
+        ${sect('ti-calendar','By Month (Lead Tracker · col AL)',tbl(monthEntries,'Month'))}
+      </div>
+    </div>`;
+    ov.style.display='flex';
+  };
+})();
 
 loadAll();
 </script>
