@@ -1446,6 +1446,46 @@ function clearDPRLogFilter(){
 }
 // ── PROJECT OVERVIEW ──────────────────────────────────────────
 const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,CLUSTER:30,CITYMGR:32,PE:34};
+
+
+  const SIZE_CATEGORIES=['Micro','Alpha','Beta','Gamma'];
+const SIZE_CAT_COLORS={Micro:'#3bc0d8',Alpha:'#4f8ef7',Beta:'#f5a623',Gamma:'#34c98a'};
+function sizeCategoryOf(row){
+  const n=povNum(lv(row,LEAD_COL.SIZE));
+  if(n<15)return 'Micro';
+  if(n<31)return 'Alpha';
+  if(n<101)return 'Beta';
+  return 'Gamma';
+}
+function povRenderSizePie(counts){
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  if(!total)return '<div class="empty">No data</div>';
+  const cx=90,cy=90,r=70;
+  let angle=-Math.PI/2;
+  const slices=[],legend=[];
+  SIZE_CATEGORIES.forEach(cat=>{
+    const cnt=counts[cat]||0;
+    if(!cnt){legend.push({cat,cnt,pct:0});return;}
+    const frac=cnt/total;
+    const nextAngle=angle+frac*Math.PI*2;
+    const largeArc=frac>0.5?1:0;
+    const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
+    const x2=cx+r*Math.cos(nextAngle),y2=cy+r*Math.sin(nextAngle);
+    const color=SIZE_CAT_COLORS[cat];
+    if(frac>0.999){
+      slices.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" opacity="0.85"></circle>`);
+    }else{
+      slices.push(`<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${color}" opacity="0.9" stroke="var(--bg)" stroke-width="2"></path>`);
+    }
+    legend.push({cat,cnt,pct:Math.round(frac*100)});
+    angle=nextAngle;
+  });
+  const svg=`<svg viewBox="0 0 180 180" style="width:180px;height:180px;flex-shrink:0;">${slices.join('')}<circle cx="${cx}" cy="${cy}" r="38" fill="var(--surface)"></circle><text x="${cx}" y="${cy-4}" text-anchor="middle" fill="var(--text)" font-size="22" font-weight="600">${total}</text><text x="${cx}" y="${cy+12}" text-anchor="middle" fill="var(--muted)" font-size="10">Projects</text></svg>`;
+  const leg=legend.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;"><span style="width:12px;height:12px;border-radius:3px;background:${SIZE_CAT_COLORS[l.cat]};"></span><span style="flex:1;color:var(--text);font-weight:500;">${l.cat}</span><span style="color:var(--muted);min-width:28px;text-align:right;">${l.cnt}</span><span style="color:var(--muted);width:38px;text-align:right;">${l.pct}%</span></div>`).join('');
+  return `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">${svg}<div style="flex:1;min-width:160px;">${leg}</div></div>`;
+}
+
+  -----
 let _povCache={};
 let _povDelayBucket='';
 function setPOVDelayBucket(b){_povDelayBucket=(_povDelayBucket===b)?'':b;buildPOV();}
@@ -1460,11 +1500,16 @@ const POV_MS_CFG={
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
   pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
-  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}
+  sizecat: {col:null,      all:'All Sizes',      ph:'Search size…',   fixed:SIZE_CATEGORIES},
+  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}}
 };
-let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set()};
-let _povMSAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice()};
-let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},status:{}};
+
+
+  let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set()};
+let _povMSAll={city:[],cluster:[],citymgr:[],pe:[],sizecat:SIZE_CATEGORIES.slice(),status:POV_STATUSES.slice()};
+let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},sizecat:{},status:{}};
+
+  
 
 function povProjectStatuses(x){
   const tags=[];
@@ -1547,6 +1592,7 @@ function povRowPassesExcept(x,exceptKey){
   if(exceptKey!=='cluster' && _povMS.cluster.size && !_povMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _povMS.citymgr.size && !_povMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
   if(exceptKey!=='pe'      && _povMS.pe.size      && !_povMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(exceptKey!=='sizecat' && _povMS.sizecat.size && !_povMS.sizecat.has(sizeCategoryOf(x)))return false;
   if(exceptKey!=='status'  && _povMS.status.size){ if(!povProjectStatuses(x).some(t=>_povMS.status.has(t)))return false; }
   return true;
 }
@@ -1558,6 +1604,9 @@ function recomputePOVOptions(){
     if(key==='status'){
       r.forEach(x=>{ if(povRowPassesExcept(x,key)){ povProjectStatuses(x).forEach(t=>counts[t]=(counts[t]||0)+1); } });
       _povMSAll[key]=POV_STATUSES.slice();
+    } else if(key==='sizecat'){
+      r.forEach(x=>{ if(povRowPassesExcept(x,key)){ const c=sizeCategoryOf(x); counts[c]=(counts[c]||0)+1; } });
+      _povMSAll[key]=SIZE_CATEGORIES.slice();
     } else {
       const colIdx=LEAD_COL[POV_MS_CFG[key].col];
       r.forEach(x=>{ if(povRowPassesExcept(x,key)){ const val=lv(x,colIdx); if(val)counts[val]=(counts[val]||0)+1; } });
@@ -1712,13 +1761,14 @@ function povDelayReport({upNever,upOk,up7,up15,up30,totalProjects}){
 
 function buildPOV(){
   const r=D.lead.r;
-  const fCity=_povMS.city, fCluster=_povMS.cluster, fCityMgr=_povMS.citymgr, fPE=_povMS.pe, fStatus=_povMS.status;
+  const fCity=_povMS.city, fCluster=_povMS.cluster, fCityMgr=_povMS.citymgr, fPE=_povMS.pe, fStatus=_povMS.status, fSizeCat=_povMS.sizecat;
   const baseRows=r.filter(x=>{
     if(!lv(x,LEAD_COL.PID))return false;
     if(fCity.size&&!fCity.has(lv(x,LEAD_COL.CITY)))return false;
     if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
     if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
     if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
+    if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     if(fStatus.size&&!povProjectStatuses(x).some(t=>fStatus.has(t)))return false;
     return true;
   });
@@ -1727,12 +1777,12 @@ function buildPOV(){
   let upNever=0,upOk=0,up7=0,up15=0,up30=0;
   baseRows.forEach(x=>{const b=bucketOf(x);if(b==='upNever')upNever++;else if(b==='up30')up30++;else if(b==='up15')up15++;else if(b==='up7')up7++;else upOk++;});
   const rows=_povDelayBucket?baseRows.filter(x=>bucketOf(x)===_povDelayBucket):baseRows;
-  const activeFilters=[fCity,fCluster,fCityMgr,fPE,fStatus].filter(s=>s.size).length+(_povDelayBucket?1:0);
+  const activeFilters=[fCity,fCluster,fCityMgr,fPE,fSizeCat,fStatus].filter(s=>s.size).length+(_povDelayBucket?1:0);
   const tag=document.getElementById('pov-filter-tag');
   if(tag){tag.style.display=activeFilters?'inline':'none';if(activeFilters)tag.textContent=`${activeFilters} filter${activeFilters>1?'s':''} active`;}
   const totalProjects=rows.length;
   let totalSize=0,assigned=0,notAssigned=0,completed=0,inProcess=0,pending=0,pendingAssigned=0,pendingNotAssigned=0;
-  const cityCount={},citySize={};
+  const cityCount={},citySize={},sizeCatCount={};
   rows.forEach(x=>{
     const projId=lv(x,LEAD_COL.PID);
     const city=lv(x,LEAD_COL.CITY)||'Unknown';
@@ -1742,6 +1792,8 @@ function buildPOV(){
     if(peAssigned)assigned++;else notAssigned++;
     cityCount[city]=(cityCount[city]||0)+1;
     citySize[city]=(citySize[city]||0)+size;
+    const cat=sizeCategoryOf(x);
+    sizeCatCount[cat]=(sizeCatCount[cat]||0)+1;
     const m=computeProjectMetrics(projId);
     if(m.status==='done')completed++;
     else if(m.status==='wip')inProcess++;
@@ -1755,21 +1807,21 @@ function buildPOV(){
     metricWithBar('ti-loader','In Process',inProcess,`${totalProjects?Math.round(inProcess/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?inProcess/totalProjects*100:0,'#f5a623')+
     metricWithBar('ti-clock','Pending',pending,`${pendingAssigned} actual (assigned) · ${pendingNotAssigned} not assigned`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c');
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
+  const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
   document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Capacity</th><th>PE</th><th>Process Start</th><th>Process End</th><th>TAT</th><th>Completion %</th><th>Final Update Stage</th><th>Remarks</th><th>Report</th></tr>';
+  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Process Start</th><th>Process End</th><th>TAT</th><th>Completion %</th><th>Final Update Stage</th><th>Remarks</th><th>Report</th></tr>';
   const tbody=document.getElementById('pov-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="13" class="empty">No projects match the selected filters</td></tr>';return;}
-  const sortedRows=[...rows].sort((a,b)=>{
-    const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));
-    if(c!==0)return c;
-    return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));
-  });
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="14" class="empty">No projects match the selected filters</td></tr>';return;}
+  const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
   tbody.innerHTML=sortedRows.map((x,i)=>{
     const city=lv(x,LEAD_COL.CITY)||'—';
     const projId=lv(x,LEAD_COL.PID);
     const projName=lv(x,LEAD_COL.PNAME)||'—';
     const cap=lv(x,LEAD_COL.SIZE)||'—';
     const peVal=lv(x,LEAD_COL.PE);
+    const cat=sizeCategoryOf(x);
+    const catColor=SIZE_CAT_COLORS[cat];
+    const catCell=`<span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;font-weight:600;">${cat}</span>`;
     const m=computeProjectMetrics(projId);
     let stageBadge;
     if(m.status==='done')stageBadge='<span class="badge bg">✓ Completed</span>';
@@ -1780,16 +1832,14 @@ function buildPOV(){
     const escName=projName.replace(/'/g,"\\'");
     const pct=m.weightedPct;
     const pctColor=pct>=100?'#34c98a':pct>0?'#f5a623':'#e74c3c';
-    const pctCell=`<div style="display:flex;align-items:center;gap:8px;min-width:90px;">
-      <div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;"><div style="width:${Math.min(pct,100)}%;height:100%;background:${pctColor};border-radius:3px;"></div></div>
-      <span style="font-size:12px;font-weight:600;color:${pctColor};min-width:30px;text-align:right;">${pct}%</span>
-    </div>`;
+    const pctCell=`<div style="display:flex;align-items:center;gap:8px;min-width:90px;"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;"><div style="width:${Math.min(pct,100)}%;height:100%;background:${pctColor};border-radius:3px;"></div></div><span style="font-size:12px;font-weight:600;color:${pctColor};min-width:30px;text-align:right;">${pct}%</span></div>`;
     const reportLink=`<a onclick="openProjectSummaryFor('${escId}','${escName}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(79,142,247,0.15);color:#4f8ef7;border:1px solid rgba(79,142,247,0.3);border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;"><i class="ti ti-external-link" style="font-size:12px;"></i>View Summary</a>`;
     return `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td style="font-size:12px">${city}</td>
       <td><span class="badge bp">${projId}</span></td>
       <td style="font-weight:500;font-size:13px">${projName}</td>
+      <td>${catCell}</td>
       <td style="font-size:12px">${cap}</td>
       <td style="font-size:12px">${peVal?peVal:'<span style="color:#e74c3c;font-weight:500;">Not Assigned</span>'}</td>
       <td style="font-size:11px;white-space:nowrap">${m.startDate?fmtDate(m.startDate):'—'}</td>
