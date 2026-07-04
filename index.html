@@ -3997,10 +3997,8 @@ function showPOTimeline(projId){
   const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===projId);
   if(!row)return;
   const projName=lv(row,LEAD_COL.PNAME)||projId;
- const startRaw=lv(row,37);   // AL — Project timeline start from
-  // Total Days — try AM first, then scan AN..AR for first numeric value
-  let daysRaw='';
-  const daysRaw=lv(row,24);   // Y — Total Days
+const startRaw=lv(row,37);   // AL — Project timeline start from
+  const daysRaw=lv(row,24);    // Y — Total Days 
   const startDate=parseDate(startRaw);
   const days=parseFloat(daysRaw)||0;
   const expected=(startDate&&days)?new Date(startDate.getTime()+days*86400000):null;
