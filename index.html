@@ -424,7 +424,7 @@ tr:hover td{background:var(--surface2);}
 
   <!-- PROJECT MONTHLY REPORT TAB -->
   <div id="tab-pmr" class="tab-content">
-    <div class="pe-filter-bar">
+<div class="pe-filter-bar">
       <div class="pe-filter-group"><label>Month</label><select id="pmr-f-month" onchange="buildPMR()"></select></div>
       <div class="pe-filter-group"><label>Week</label>
         <select id="pmr-f-week" onchange="buildPMR()">
@@ -440,9 +440,12 @@ tr:hover td{background:var(--surface2);}
       <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pmr-ms" id="pmr-ms-cluster"></div></div>
       <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pmr-ms" id="pmr-ms-citymgr"></div></div>
       <div class="pe-filter-group"><label>PE</label><div class="pov-ms pmr-ms" id="pmr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms pmr-ms" id="pmr-ms-pname"></div></div>
+      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms pmr-ms" id="pmr-ms-pid"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPMRFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
     </div>
+    
     <div style="padding:16px 24px 24px;">
       <div class="section-title">Project wise Monthly report</div>
       <div class="pmr-legend" id="pmr-legend"></div>
@@ -470,8 +473,6 @@ tr:hover td{background:var(--surface2);}
       <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pmr-ms" id="pmr-ms-cluster"></div></div>
       <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pmr-ms" id="pmr-ms-citymgr"></div></div>
       <div class="pe-filter-group"><label>PE</label><div class="pov-ms pmr-ms" id="pmr-ms-pe"></div></div>
-      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms pmr-ms" id="pmr-ms-pname"></div></div>
-      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms pmr-ms" id="pmr-ms-pid"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPMRFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
     </div>
