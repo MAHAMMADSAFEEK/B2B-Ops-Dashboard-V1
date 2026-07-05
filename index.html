@@ -4172,7 +4172,7 @@ function povRenderExtraReports(){
 // ── 1. INSTALLATION COMPLETED MATRIX (City × Month) ─────────────
 function povRenderInstMatrix(rows){
   const host=document.getElementById('pov-inst-matrix');if(!host)return;
-  const installed=rows.filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.endDate;});
+  const installed=rows.filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.endDate && m.weightedPct>=100;});
   if(!installed.length){host.innerHTML='<div class="empty">No completed installations in current filter</div>';return;}
   const matrix={},cities=new Set(),months=new Map();
   installed.forEach(x=>{
@@ -4251,7 +4251,7 @@ function povShowInstCell(key){
 }
 
 function povShowInstSummary(){
-  const rows=povGetBaseRows().filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).endDate);
+  const rows=povGetBaseRows().filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.endDate && m.weightedPct>=100;});
   if(!rows.length){return;}
   // By PE, month-on-month
   const peByMonth={},sizeByMonth={},monthSet=new Set();
