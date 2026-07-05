@@ -454,10 +454,10 @@ tr:hover td{background:var(--surface2);}
 
   <!-- PE MONTHLY REPORT TAB -->
   <div id="tab-pemr" class="tab-content">
-    <div class="pe-filter-bar">
-      <div class="pe-filter-group"><label>Month</label><select id="pemr-f-month" onchange="buildPEMR()"></select></div>
+<div class="pe-filter-bar">
+      <div class="pe-filter-group"><label>Month</label><select id="pmr-f-month" onchange="buildPMR()"></select></div>
       <div class="pe-filter-group"><label>Week</label>
-        <select id="pemr-f-week" onchange="buildPEMR()">
+        <select id="pmr-f-week" onchange="buildPMR()">
           <option value="">All Weeks</option>
           <option value="1">Week 1 (1–7)</option>
           <option value="2">Week 2 (8–14)</option>
@@ -466,12 +466,14 @@ tr:hover td{background:var(--surface2);}
           <option value="5">Week 5 (29–end)</option>
         </select>
       </div>
-      <div class="pe-filter-group"><label>City</label><div class="pov-ms pemr-ms" id="pemr-ms-city"></div></div>
-      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pemr-ms" id="pemr-ms-cluster"></div></div>
-      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pemr-ms" id="pemr-ms-citymgr"></div></div>
-      <div class="pe-filter-group"><label>PE</label><div class="pov-ms pemr-ms" id="pemr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>City</label><div class="pov-ms pmr-ms" id="pmr-ms-city"></div></div>
+      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pmr-ms" id="pmr-ms-cluster"></div></div>
+      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pmr-ms" id="pmr-ms-citymgr"></div></div>
+      <div class="pe-filter-group"><label>PE</label><div class="pov-ms pmr-ms" id="pmr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms pmr-ms" id="pmr-ms-pname"></div></div>
+      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms pmr-ms" id="pmr-ms-pid"></div></div>
       <div class="pe-fdivider"></div>
-      <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPEMRFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
+      <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPMRFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
     </div>
     <div style="padding:16px 24px 24px;">
       <div class="section-title">PE Monthly Report</div>
