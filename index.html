@@ -269,63 +269,112 @@ tr:hover td{background:var(--surface2);}
   </div>
 
   <!-- PROJECT OVERVIEW TAB -->
-  <div id="tab-pov" class="tab-content active">
-    <div class="pe-filter-bar">
-      <div class="pe-filter-group">
-        <label>City</label>
-        <div class="pov-ms" id="pov-ms-city"></div>
-      </div>
-      <div class="pe-filter-group">
-        <label>Cluster Head</label>
-        <div class="pov-ms" id="pov-ms-cluster"></div>
-      </div>
-      <div class="pe-filter-group">
-        <label>City Manager</label>
-        <div class="pov-ms" id="pov-ms-citymgr"></div>
-      </div>
-      <div class="pe-filter-group">
-        <label>PE</label>
-        <div class="pov-ms" id="pov-ms-pe"></div>
-      </div>
-      <div class="pe-filter-group">
-        
-        <label>Project Status</label>
-        <div class="pov-ms" id="pov-ms-status"></div>
-      </div>
-      <div class="pe-filter-group">
-  <label>Size Category</label>
-  <div class="pov-ms" id="pov-ms-sizecat"></div>
-</div>
-      <div class="pe-filter-group">
-        <label>Project Name</label>
-        <div class="pov-ms" id="pov-ms-pname"></div>
-      </div>
-      <div class="pe-filter-group">
-        <label>Project ID</label>
-        <div class="pov-ms" id="pov-ms-pid"></div>
-      </div>
-      
-      <div class="pe-fdivider"></div>
-      <div class="pe-filter-actions">
-        <span class="spacer"></span>
-        <button class="pe-clr-btn" onclick="clearPOVFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button>
-      </div>
-      <span id="pov-filter-tag" class="pe-active-tag" style="display:none;"></span>
+<div id="tab-pov" class="tab-content active">
+
+  <div class="pe-filter-bar">
+
+    <div class="pe-filter-group">
+      <label>City</label>
+      <div class="pov-ms" id="pov-ms-city"></div>
     </div>
-    <div style="padding:20px 24px 0;">
-      <div class="section-title">Project Overview</div>
-      <div class="metrics" id="pov-metrics"></div>
+
+    <div class="pe-filter-group">
+      <label>Cluster Head</label>
+      <div class="pov-ms" id="pov-ms-cluster"></div>
     </div>
-    <div style="padding:0 24px 20px;">
-<div class="charts-grid">
-  <div class="card"><div class="card-title"><i class="ti ti-building"></i> City-wise Projects</div><div id="pov-city-table"></div></div>
-  <div class="card"><div class="card-title"><i class="ti ti-chart-pie-filled"></i> Size Category Distribution</div><div id="pov-sizecat-chart"></div></div>
-  <div class="card"><div class="card-title"><i class="ti ti-report-analytics"></i> Project Update Report</div><div id="pov-delay-report"></div></div>
-</div>
-</div>
+
+    <div class="pe-filter-group">
+      <label>City Manager</label>
+      <div class="pov-ms" id="pov-ms-citymgr"></div>
+    </div>
+
+    <div class="pe-filter-group">
+      <label>PE</label>
+      <div class="pov-ms" id="pov-ms-pe"></div>
+    </div>
+
+    <div class="pe-filter-group">
+      <label>Project Status</label>
+      <div class="pov-ms" id="pov-ms-status"></div>
+    </div>
+
+    <div class="pe-filter-group">
+      <label>Size Category</label>
+      <div class="pov-ms" id="pov-ms-sizecat"></div>
+    </div>
+
+    <div class="pe-filter-group">
+      <label>Project Name</label>
+      <div class="pov-ms" id="pov-ms-pname"></div>
+    </div>
+
+    <div class="pe-filter-group">
+      <label>Project ID</label>
+      <div class="pov-ms" id="pov-ms-pid"></div>
+    </div>
+
+    <div class="pe-fdivider"></div>
+
+    <div class="pe-filter-actions">
+      <span class="spacer"></span>
+      <button class="pe-clr-btn" onclick="clearPOVFilters()">
+        <i class="ti ti-x" style="font-size:12px;"></i> Clear Filters
+      </button>
+    </div>
+
+    <span id="pov-filter-tag" class="pe-active-tag" style="display:none;"></span>
+
   </div>
 
+  <div style="padding:20px 24px 0;">
+    <div class="section-title">Project Overview</div>
+    <div class="metrics" id="pov-metrics"></div>
+  </div>
 
+  <div style="padding:0 24px 20px;">
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-building"></i> City-wise Projects</div>
+        <div id="pov-city-table"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-chart-pie-filled"></i> Size Category Distribution</div>
+        <div id="pov-sizecat-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-report-analytics"></i> Project Update Report</div>
+        <div id="pov-delay-report"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-calendar-check"></i> Installation Completed — City × Month</div>
+      <div id="pov-inst-matrix"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="ti ti-clock-exclamation"></i> Project Delay Aging Report</div>
+      <div id="pov-delay-aging"></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-user-star"></i> Top PE Performance</div>
+        <div id="pov-top-pe"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-building"></i> City Performance</div>
+        <div id="pov-top-city"></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
   <!-- PROJECT REPORT TAB -->
 <div id="tab-prep" class="tab-content">
     <div class="pe-filter-bar">
@@ -4087,43 +4136,7 @@ const cards=
 }
 
 
- 
-INSTALLATION:
-─────────────
-STEP 1 — HTML: Inside <div id="tab-pov">, find the closing </div> of
-         the existing charts-grid block. Directly AFTER </div></div>
-         (which closes the second padding wrapper), paste HTML BLOCK A.
 
-STEP 2 — JS: Just BEFORE `loadAll();` at the very bottom of the
-         <script>, paste JS BLOCK B.
-
-STEP 3 — Save and reload. Reports auto-render whenever buildPOV runs
-         (via IIFE wrapper — no changes to buildPOV needed).
-═══════════════════════════════════════════════════════════════════
--->
-
-<!-- ═══════════ HTML BLOCK A ═══════════ -->
-<!-- Paste this inside #tab-pov, AFTER the existing charts-grid card closes -->
-
-<div style="padding:0 24px 24px;">
-  <div class="card">
-    <div class="card-title"><i class="ti ti-calendar-check"></i> Installation Completed — City × Month</div>
-    <div id="pov-inst-matrix"></div>
-  </div>
-  <div class="card">
-    <div class="card-title"><i class="ti ti-clock-exclamation"></i> Project Delay Aging Report</div>
-    <div id="pov-delay-aging"></div>
-  </div>
-  <div class="charts-grid">
-    <div class="card"><div class="card-title"><i class="ti ti-user-star"></i> Top PE Performance</div><div id="pov-top-pe"></div></div>
-    <div class="card"><div class="card-title"><i class="ti ti-building"></i> City Performance</div><div id="pov-top-city"></div></div>
-  </div>
-</div>
-
-<!-- ═══════════ JS BLOCK B ═══════════ -->
-<!-- Paste this just BEFORE `loadAll();` at the very bottom of <script> -->
-
-<script>
 (function(){
   const _origBuildPOV=window.buildPOV;
   window.buildPOV=function(){
@@ -4533,6 +4546,7 @@ function povShowCityDetail(idx){
   ov.style.display='flex';
 }
 
+  
 loadAll();
 </script>
 </body>
