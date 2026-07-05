@@ -37,6 +37,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tabs .tab:nth-child(5){--tc:#3bc0d8;}
 .tabs .tab:nth-child(6){--tc:#e8743b;}
 .tabs .tab:nth-child(7){--tc:#e0518a;}
+.tabs .tab:nth-child(8){--tc:#7d5fff;}
 .tab.active{opacity:1;box-shadow:0 4px 14px rgba(0,0,0,0.4);transform:translateY(-1px);}
 .tab-content{display:none;}
 .tab-content.active{display:block;}
@@ -256,14 +257,15 @@ tr:hover td{background:var(--surface2);}
 </div>
 
 <div class="main" id="main" style="display:none;">
-  <div class="tabs">
+<div class="tabs">
     <button class="tab active" onclick="switchTab('pov',this)"><i class="ti ti-layout-dashboard"></i> Project Overview</button>
+    <button class="tab" onclick="switchTab('prep',this)"><i class="ti ti-table"></i> Project Report</button>
+    <button class="tab" onclick="switchTab('proj',this)"><i class="ti ti-building-skyscraper"></i> Project Summary</button>
     <button class="tab" onclick="switchTab('rpt',this)"><i class="ti ti-chart-pie"></i> Reports</button>
     <button class="tab" onclick="switchTab('hrc',this)"><i class="ti ti-binary-tree"></i> Hierarchy Report</button>
     <button class="tab" onclick="switchTab('pmr',this)"><i class="ti ti-calendar-month"></i> Project wise Monthly report</button>
     <button class="tab" onclick="switchTab('pemr',this)"><i class="ti ti-user-check"></i> PE Monthly Report</button>
     <button class="tab" onclick="switchTab('vmr',this)"><i class="ti ti-building-store"></i> Vendor Monthly Report</button>
-    <button class="tab" onclick="switchTab('proj',this)"><i class="ti ti-building-skyscraper"></i> Project Summary</button>
   </div>
 
   <!-- PROJECT OVERVIEW TAB -->
@@ -294,6 +296,14 @@ tr:hover td{background:var(--surface2);}
   <label>Size Category</label>
   <div class="pov-ms" id="pov-ms-sizecat"></div>
 </div>
+      <div class="pe-filter-group">
+        <label>Project Name</label>
+        <div class="pov-ms" id="pov-ms-pname"></div>
+      </div>
+      <div class="pe-filter-group">
+        <label>Project ID</label>
+        <div class="pov-ms" id="pov-ms-pid"></div>
+      </div>
       
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions">
@@ -312,6 +322,23 @@ tr:hover td{background:var(--surface2);}
   <div class="card"><div class="card-title"><i class="ti ti-chart-pie-filled"></i> Size Category Distribution</div><div id="pov-sizecat-chart"></div></div>
   <div class="card"><div class="card-title"><i class="ti ti-report-analytics"></i> Project Update Report</div><div id="pov-delay-report"></div></div>
 </div>
+</div>
+  </div>
+
+
+  <!-- PROJECT REPORT TAB -->
+  <div id="tab-prep" class="tab-content">
+    <div class="pe-filter-bar">
+      <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="pov-ms-city-2"></div></div>
+      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="pov-ms-cluster-2"></div></div>
+      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="pov-ms-citymgr-2"></div></div>
+      <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="pov-ms-pe-2"></div></div>
+      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms" id="pov-ms-status-2"></div></div>
+      <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="pov-ms-sizecat-2"></div></div>
+      <div class="pe-fdivider"></div>
+      <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPOVFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
+    </div>
+    <div style="padding:20px 24px;">
       <div class="card">
         <div class="card-title"><i class="ti ti-table"></i> Project Master</div>
         <div class="table-wrap"><table><thead id="pov-head"></thead><tbody id="pov-body"></tbody></table></div>
@@ -1509,14 +1536,16 @@ const POV_MS_CFG={
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
   pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
+  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES},
   sizecat: {col:null,      all:'All Sizes',      ph:'Search size…',   fixed:SIZE_CATEGORIES},
-  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}
+  pname:   {col:'PNAME',   all:'All Projects',   ph:'Search project name…'},
+  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'}
 };
 
 
-  let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set()};
-let _povMSAll={city:[],cluster:[],citymgr:[],pe:[],sizecat:SIZE_CATEGORIES.slice(),status:POV_STATUSES.slice()};
-let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},sizecat:{},status:{}};
+let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set(),pname:new Set(),pid:new Set()};
+let _povMSAll={city:[],cluster:[],citymgr:[],pe:[],sizecat:SIZE_CATEGORIES.slice(),status:POV_STATUSES.slice(),pname:[],pid:[]};
+let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},sizecat:{},status:{},pname:{},pid:{}};
 
   
 
@@ -1532,13 +1561,15 @@ function povProjectStatuses(x){
 
 function populatePOVFilters(){
   const r=D.lead.r;
-  const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
+const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pname:new Set(),pid:new Set()};
   r.forEach(x=>{
-    if(!lv(x,LEAD_COL.PID))return;
+    const pid=lv(x,LEAD_COL.PID);if(!pid)return;
     const c=lv(x,LEAD_COL.CITY); if(c)sets.city.add(c);
     const ch=lv(x,LEAD_COL.CLUSTER); if(ch)sets.cluster.add(ch);
     const cm=lv(x,LEAD_COL.CITYMGR); if(cm)sets.citymgr.add(cm);
     const pe=lv(x,LEAD_COL.PE); if(pe)sets.pe.add(pe);
+    const pn=lv(x,LEAD_COL.PNAME);if(pn)sets.pname.add(pn);
+    sets.pid.add(pid);
   });
   Object.keys(sets).forEach(k=>{
     _povMSAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));
@@ -1551,10 +1582,11 @@ function populatePOVFilters(){
 }
 
 function buildPOVMSWidget(key){
-  const host=document.getElementById('pov-ms-'+key);
-  if(!host)return;
   const cfg=POV_MS_CFG[key];
-  host.innerHTML=`
+  ['pov-ms-'+key,'pov-ms-'+key+'-2'].forEach(hostId=>{
+    const host=document.getElementById(hostId);
+    if(!host)return;
+    host.innerHTML=`
     <div class="pov-ms-control" onclick="togglePOVMS('${key}')">
       <span class="pov-ms-text placeholder" id="pov-ms-text-${key}">${cfg.all}</span>
       <i class="ti ti-chevron-down"></i>
@@ -1567,6 +1599,8 @@ function buildPOVMSWidget(key){
       </div>
       <div class="pov-ms-options" id="pov-ms-options-${key}"></div>
     </div>`;
+    
+});
   renderPOVMSOptions(key);
   updatePOVMSControl(key);
 }
@@ -1601,8 +1635,10 @@ function povRowPassesExcept(x,exceptKey){
   if(exceptKey!=='cluster' && _povMS.cluster.size && !_povMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _povMS.citymgr.size && !_povMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
   if(exceptKey!=='pe'      && _povMS.pe.size      && !_povMS.pe.has(lv(x,LEAD_COL.PE)))return false;
-  if(exceptKey!=='sizecat' && _povMS.sizecat.size && !_povMS.sizecat.has(sizeCategoryOf(x)))return false;
+if(exceptKey!=='sizecat' && _povMS.sizecat.size && !_povMS.sizecat.has(sizeCategoryOf(x)))return false;
   if(exceptKey!=='status'  && _povMS.status.size){ if(!povProjectStatuses(x).some(t=>_povMS.status.has(t)))return false; }
+  if(exceptKey!=='pname'   && _povMS.pname.size && !_povMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
+  if(exceptKey!=='pid'     && _povMS.pid.size   && !_povMS.pid.has(lv(x,LEAD_COL.PID)))return false;
   return true;
 }
 
@@ -1789,8 +1825,10 @@ function buildPOV(){
     if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
     if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
     if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
-    if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
+if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     if(fStatus.size&&!povProjectStatuses(x).some(t=>fStatus.has(t)))return false;
+    if(_povMS.pname.size&&!_povMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
+    if(_povMS.pid.size&&!_povMS.pid.has(lv(x,LEAD_COL.PID)))return false;
     return true;
   });
   const today=new Date();today.setHours(0,0,0,0);
