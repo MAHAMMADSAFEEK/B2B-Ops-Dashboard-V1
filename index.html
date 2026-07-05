@@ -1961,7 +1961,7 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
       <td style="font-size:12px">${cap}</td>
 
 <td style="font-size:12px">${peVal?peVal:'<span style="color:#e74c3c;font-weight:500;">Not Assigned</span>'}</td>
-      <td>${(()=>{const raw=lv(x,24);const d=parseDate(raw);return d?`<span onclick="showPOTimeline('${escId}')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;font-weight:500;font-size:12px;white-space:nowrap;" title="Click for PO timeline">${fmtDate(d)}</span>`:`<span style="color:var(--muted);font-size:11px;">—</span>`;})()}</td>
+      <td>${(()=>{const raw=lv(x,37);const d=parseDate(raw);return d?`<span onclick="showPOTimeline('${escId}')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;font-weight:500;font-size:12px;white-space:nowrap;" title="Click for PO timeline">${fmtDate(d)}</span>`:`<span style="color:var(--muted);font-size:11px;">—</span>`;})()}</td>
       <td style="font-size:11px;white-space:nowrap">${m.startDate?fmtDate(m.startDate):'—'}</td>
       <td style="font-size:11px;white-space:nowrap">${m.endDate?fmtDate(m.endDate):'—'}</td>
       <td style="font-size:12px;font-weight:500">${m.tat!==null?m.tat+'d':'—'}</td>
