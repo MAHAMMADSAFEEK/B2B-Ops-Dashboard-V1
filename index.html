@@ -327,14 +327,16 @@ tr:hover td{background:var(--surface2);}
 
 
   <!-- PROJECT REPORT TAB -->
-  <div id="tab-prep" class="tab-content">
+<div id="tab-prep" class="tab-content">
     <div class="pe-filter-bar">
-      <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="pov-ms-city-2"></div></div>
-      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="pov-ms-cluster-2"></div></div>
-      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="pov-ms-citymgr-2"></div></div>
-      <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="pov-ms-pe-2"></div></div>
-      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms" id="pov-ms-status-2"></div></div>
-      <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="pov-ms-sizecat-2"></div></div>
+      <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="pov-ms-city-prep"></div></div>
+      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="pov-ms-cluster-prep"></div></div>
+      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="pov-ms-citymgr-prep"></div></div>
+      <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="pov-ms-pe-prep"></div></div>
+      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms" id="pov-ms-status-prep"></div></div>
+      <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="pov-ms-sizecat-prep"></div></div>
+      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms" id="pov-ms-pname-prep"></div></div>
+      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms" id="pov-ms-pid-prep"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPOVFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
     </div>
@@ -399,7 +401,9 @@ tr:hover td{background:var(--surface2);}
           <option value="5">Week 5 (29–end)</option>
         </select>
       </div>
-      <div class="pe-filter-group"><label>Date (daily)</label><select id="hrc-f-date" onchange="onHRCDateChange()"><option value="">All Days</option></select></div>
+<div class="pe-filter-group"><label>PE</label><div class="pov-ms pmr-ms" id="pmr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms pmr-ms" id="pmr-ms-pname"></div></div>
+      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms pmr-ms" id="pmr-ms-pid"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions">
         <span class="spacer"></span>
@@ -1583,42 +1587,44 @@ const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pnam
 
 function buildPOVMSWidget(key){
   const cfg=POV_MS_CFG[key];
-  ['pov-ms-'+key,'pov-ms-'+key+'-2'].forEach(hostId=>{
+  ['pov-ms-'+key,'pov-ms-'+key+'-prep'].forEach(hostId=>{
     const host=document.getElementById(hostId);
     if(!host)return;
+    const suffix=hostId===('pov-ms-'+key)?'':'-prep';
     host.innerHTML=`
-    <div class="pov-ms-control" onclick="togglePOVMS('${key}')">
-      <span class="pov-ms-text placeholder" id="pov-ms-text-${key}">${cfg.all}</span>
-      <i class="ti ti-chevron-down"></i>
-    </div>
-    <div class="pov-ms-panel">
-      <input type="text" class="pov-ms-search" id="pov-ms-search-${key}" placeholder="${cfg.ph}" oninput="renderPOVMSOptions('${key}')" onclick="event.stopPropagation()"/>
-      <div class="pov-ms-actions">
-        <button onclick="event.stopPropagation();selectAllPOVMS('${key}')">Select all</button>
-        <button onclick="event.stopPropagation();clearPOVMS('${key}')">Clear</button>
+      <div class="pov-ms-control" onclick="togglePOVMS('${key}','${suffix}')">
+        <span class="pov-ms-text placeholder" id="pov-ms-text-${key}${suffix}">${cfg.all}</span>
+        <i class="ti ti-chevron-down"></i>
       </div>
-      <div class="pov-ms-options" id="pov-ms-options-${key}"></div>
-    </div>`;
-    
-});
+      <div class="pov-ms-panel">
+        <input type="text" class="pov-ms-search" id="pov-ms-search-${key}${suffix}" placeholder="${cfg.ph}" oninput="renderPOVMSOptions('${key}','${suffix}')" onclick="event.stopPropagation()"/>
+        <div class="pov-ms-actions">
+          <button onclick="event.stopPropagation();selectAllPOVMS('${key}')">Select all</button>
+          <button onclick="event.stopPropagation();clearPOVMS('${key}')">Clear</button>
+        </div>
+        <div class="pov-ms-options" id="pov-ms-options-${key}${suffix}"></div>
+      </div>`;
+  });
   renderPOVMSOptions(key);
   updatePOVMSControl(key);
 }
 
 function renderPOVMSOptions(key){
-  const box=document.getElementById('pov-ms-options-'+key);
-  if(!box)return;
-  const q=((document.getElementById('pov-ms-search-'+key)||{}).value||'').trim().toLowerCase();
-  const opts=_povMSAll[key].filter(o=>!q||o.toLowerCase().includes(q));
-  if(!opts.length){box.innerHTML='<div class="pov-ms-empty">No matches</div>';return;}
-  const counts=_povMSCounts[key]||{};
-  const hl=(t)=>{if(!q)return t;const i=t.toLowerCase().indexOf(q);return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length);};
-  box.innerHTML=opts.map(o=>{
-    const checked=_povMS[key].has(o)?'checked':'';
-    const safe=o.replace(/"/g,'&quot;').replace(/'/g,"\\'");
-    const cnt=counts[o]||0;
-    return `<label class="pov-ms-opt" onclick="event.stopPropagation()"><input type="checkbox" ${checked} onchange="togglePOVMSOption('${key}','${safe}')"/><span class="lbl" title="${o.replace(/"/g,'&quot;')}">${hl(o)}</span><span class="pov-ms-cnt">${cnt}</span></label>`;
-  }).join('');
+  ['','-prep'].forEach(suffix=>{
+    const box=document.getElementById('pov-ms-options-'+key+suffix);
+    if(!box)return;
+    const q=((document.getElementById('pov-ms-search-'+key+suffix)||{}).value||'').trim().toLowerCase();
+    const opts=_povMSAll[key].filter(o=>!q||o.toLowerCase().includes(q));
+    if(!opts.length){box.innerHTML='<div class="pov-ms-empty">No matches</div>';return;}
+    const counts=_povMSCounts[key]||{};
+    const hl=(t)=>{if(!q)return t;const i=t.toLowerCase().indexOf(q);return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length);};
+    box.innerHTML=opts.map(o=>{
+      const checked=_povMS[key].has(o)?'checked':'';
+      const safe=o.replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      const cnt=counts[o]||0;
+      return `<label class="pov-ms-opt" onclick="event.stopPropagation()"><input type="checkbox" ${checked} onchange="togglePOVMSOption('${key}','${safe}')"/><span class="lbl" title="${o.replace(/"/g,'&quot;')}">${hl(o)}</span><span class="pov-ms-cnt">${cnt}</span></label>`;
+    }).join('');
+  });
 }
 
 function togglePOVMSOption(key,val){
@@ -1676,20 +1682,23 @@ function clearPOVMS(key){
 }
 
 function updatePOVMSControl(key){
-  const txt=document.getElementById('pov-ms-text-'+key);
-  if(!txt)return;
-  const sel=_povMS[key];
-  if(!sel.size){txt.textContent=POV_MS_CFG[key].all;txt.classList.add('placeholder');}
-  else if(sel.size===1){txt.textContent=[...sel][0];txt.classList.remove('placeholder');}
-  else {txt.textContent=`${sel.size} selected`;txt.classList.remove('placeholder');}
+  ['','-prep'].forEach(suffix=>{
+    const txt=document.getElementById('pov-ms-text-'+key+suffix);
+    if(!txt)return;
+    const sel=_povMS[key];
+    if(!sel.size){txt.textContent=POV_MS_CFG[key].all;txt.classList.add('placeholder');}
+    else if(sel.size===1){txt.textContent=[...sel][0];txt.classList.remove('placeholder');}
+    else {txt.textContent=`${sel.size} selected`;txt.classList.remove('placeholder');}
+  });
 }
 
-function togglePOVMS(key){
-  const host=document.getElementById('pov-ms-'+key);
+function togglePOVMS(key,suffix){
+  suffix=suffix||'';
+  const host=document.getElementById('pov-ms-'+key+suffix);
   if(!host)return;
   const wasOpen=host.classList.contains('open');
   document.querySelectorAll('.pov-ms.open').forEach(el=>el.classList.remove('open'));
-  if(!wasOpen){host.classList.add('open');const s=document.getElementById('pov-ms-search-'+key);if(s){s.value='';renderPOVMSOptions(key);setTimeout(()=>s.focus(),0);}}
+  if(!wasOpen){host.classList.add('open');const s=document.getElementById('pov-ms-search-'+key+suffix);if(s){s.value='';renderPOVMSOptions(key);setTimeout(()=>s.focus(),0);}}
 }
 
 document.addEventListener('click',e=>{
@@ -2172,11 +2181,13 @@ const PMR_MS_CFG={
   city:    {col:'CITY',    all:'All Cities',    ph:'Search cities…'},
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
-  pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'}
+  pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
+  pname:   {col:'PNAME',   all:'All Projects',   ph:'Search project name…'},
+  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'}
 };
-let _pmrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
-let _pmrMSAll={city:[],cluster:[],citymgr:[],pe:[]};
-let _pmrMSCounts={city:{},cluster:{},citymgr:{},pe:{}};
+let _pmrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pname:new Set(),pid:new Set()};
+let _pmrMSAll={city:[],cluster:[],citymgr:[],pe:[],pname:[],pid:[]};
+let _pmrMSCounts={city:{},cluster:{},citymgr:{},pe:{},pname:{},pid:{}};
 
 function populatePMRFilters(){
   // Month options from attendance dates
@@ -2192,12 +2203,14 @@ function populatePMRFilters(){
     if(!keys.length){const o=document.createElement('option');o.value='';o.textContent='No data';msel.appendChild(o);}
   }
   // City / Cluster / CM / PE multi-selects
-  const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
-  D.lead.r.forEach(x=>{if(!lv(x,LEAD_COL.PID))return;
+const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pname:new Set(),pid:new Set()};
+  D.lead.r.forEach(x=>{const pid=lv(x,LEAD_COL.PID);if(!pid)return;
     const c=lv(x,LEAD_COL.CITY);if(c)sets.city.add(c);
     const ch=lv(x,LEAD_COL.CLUSTER);if(ch)sets.cluster.add(ch);
     const cm=lv(x,LEAD_COL.CITYMGR);if(cm)sets.citymgr.add(cm);
-    const pe=lv(x,LEAD_COL.PE);if(pe)sets.pe.add(pe);});
+    const pe=lv(x,LEAD_COL.PE);if(pe)sets.pe.add(pe);
+    const pn=lv(x,LEAD_COL.PNAME);if(pn)sets.pname.add(pn);
+    sets.pid.add(pid);});
   Object.keys(sets).forEach(k=>{_pmrMSAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));_pmrMS[k]=new Set([..._pmrMS[k]].filter(v=>sets[k].has(v)));});
   Object.keys(PMR_MS_CFG).forEach(buildPMRMSWidget);
   recomputePMROptions();
@@ -2240,7 +2253,9 @@ function pmrRowPassesExcept(x,exceptKey){
   if(exceptKey!=='city'    && _pmrMS.city.size    && !_pmrMS.city.has(lv(x,LEAD_COL.CITY)))return false;
   if(exceptKey!=='cluster' && _pmrMS.cluster.size && !_pmrMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _pmrMS.citymgr.size && !_pmrMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
-  if(exceptKey!=='pe'      && _pmrMS.pe.size      && !_pmrMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+if(exceptKey!=='pe'      && _pmrMS.pe.size      && !_pmrMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(exceptKey!=='pname'   && _pmrMS.pname.size   && !_pmrMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
+  if(exceptKey!=='pid'     && _pmrMS.pid.size     && !_pmrMS.pid.has(lv(x,LEAD_COL.PID)))return false;
   return true;
 }
 function recomputePMROptions(){
@@ -2424,14 +2439,17 @@ function buildPMR(){
   _pmrCtx={attByPD:attIdx,tbtByPD:tbtIdx,dprByPD,projName,projDates,A_CI,A_CO,A_LOC};
 
   // Project rows from Lead Tracker (filtered)
-  const projRows=D.lead.r.filter(x=>{
-    if(!lv(x,LEAD_COL.PID))return false;
+const projRows=D.lead.r.filter(x=>{
+    const pid=lv(x,LEAD_COL.PID);if(!pid)return false;
     if(fCity.size&&!fCity.has(lv(x,LEAD_COL.CITY)))return false;
     if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
     if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
     if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
+    if(_pmrMS.pname.size&&!_pmrMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
+    if(_pmrMS.pid.size&&!_pmrMS.pid.has(pid))return false;
     return true;
-  }).sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));return c!==0?c:lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
+  })
+    .sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));return c!==0?c:lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
 
   // Header
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
