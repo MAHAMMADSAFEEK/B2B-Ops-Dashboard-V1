@@ -1922,7 +1922,8 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     metricWithBar('ti-user-off','Not Assigned',notAssigned,`${totalProjects?Math.round(notAssigned/totalProjects*100):0}% of projects`,'#e74c3c',totalProjects?notAssigned/totalProjects*100:0,'#e74c3c')+
     metricWithBar('ti-circle-check','Completed',completed,`${totalProjects?Math.round(completed/totalProjects*100):0}% of projects`,'#34c98a',totalProjects?completed/totalProjects*100:0,'#34c98a')+
     metricWithBar('ti-loader','In Process',inProcess,`${totalProjects?Math.round(inProcess/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?inProcess/totalProjects*100:0,'#f5a623')+
-    metricWithBar('ti-clock','Pending',pending,`${pendingAssigned} actual (assigned) · ${pendingNotAssigned} not assigned`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c');
+    metricWithBar('ti-clock','Pending',pending,`${pendingAssigned} actual (assigned) · ${pendingNotAssigned} not assigned`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c')+
+    (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})();
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
   document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
@@ -4542,6 +4543,50 @@ function povShowCityDetail(idx){
     <div class="metrics" style="margin-top:8px;">${cards}</div>
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 6px;">PE Breakdown in ${pemrEsc(s.city)}</div>
     <div class="table-wrap" style="overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>PE</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Rate</th></tr></thead><tbody>${peRows}</tbody></table></div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+  function povShowDelayedLeads(){
+  const rows=povGetBaseRows();
+  const delayed=[];
+  rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)delayed.push({row:x,...d});});
+  if(!delayed.length){return;}
+  const total=delayed.length;
+  const byCity={},bySize={},byPE={},byBucket={};
+  DELAY_LABELS.forEach(l=>byBucket[l]=0);
+  delayed.forEach(it=>{
+    const c=lv(it.row,LEAD_COL.CITY)||'—';
+    const cat=sizeCategoryOf(it.row);
+    const pe=lv(it.row,LEAD_COL.PE)||'Not Assigned';
+    byCity[c]=(byCity[c]||0)+1;
+    bySize[cat]=(bySize[cat]||0)+1;
+    byPE[pe]=(byPE[pe]||0)+1;
+    for(let i=0;i<DELAY_BUCKETS.length;i++){const [lo,hi]=DELAY_BUCKETS[i];if(it.delayBy>=lo&&it.delayBy<=hi){byBucket[DELAY_LABELS[i]]++;break;}}
+  });
+  const tbl=(data,label,colors,orderKeys)=>{
+    const keys=orderKeys||Object.keys(data).sort((a,b)=>data[b]-data[a]);
+    const body=keys.filter(k=>data[k]).map(k=>{
+      const pct=Math.round(data[k]/total*100);
+      const sw=colors&&colors[k]?`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[k]};margin-right:6px;vertical-align:middle;"></span>`:'';
+      return `<tr><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:#e74c3c;">${data[k]}</td><td style="text-align:right;color:var(--muted);">${pct}%</td><td><div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#e74c3c;"></div></div></td></tr>`;
+    }).join('');
+    return `<div class="table-wrap" style="margin-bottom:14px;"><table style="font-size:12px;width:100%;"><thead><tr><th>${label}</th><th style="text-align:right;">Delayed</th><th style="text-align:right;">%</th><th style="min-width:100px;">Dist</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  };
+  const sect=(icon,t,inner)=>`<div style="margin-top:10px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px;"><i class="ti ${icon}"></i>${t}</div>${inner}</div>`;
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:860px;max-height:92vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;">Delayed Leads — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${total} project(s) delayed vs PO timeline</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;">
+      ${sect('ti-building','By City',tbl(byCity,'City'))}
+      ${sect('ti-ruler-2','By Size Category',tbl(bySize,'Size',SIZE_CAT_COLORS,SIZE_CATEGORIES))}
+      ${sect('ti-user','By PE',tbl(byPE,'PE'))}
+      ${sect('ti-clock-exclamation','By Aging Bucket',tbl(byBucket,'Bucket',null,DELAY_LABELS))}
+    </div>
   </div>`;
   ov.style.display='flex';
 }
