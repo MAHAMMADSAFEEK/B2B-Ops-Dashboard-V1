@@ -4547,11 +4547,12 @@ function povShowCityDetail(idx){
   ov.style.display='flex';
 }
 
-  function povShowDelayedLeads(){
+function povShowDelayedLeads(){
   const rows=povGetBaseRows();
   const delayed=[];
   rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)delayed.push({row:x,...d});});
   if(!delayed.length){return;}
+  window._povDelayedList=delayed;
   const total=delayed.length;
   const byCity={},bySize={},byPE={},byBucket={};
   DELAY_LABELS.forEach(l=>byBucket[l]=0);
@@ -4564,12 +4565,13 @@ function povShowCityDetail(idx){
     byPE[pe]=(byPE[pe]||0)+1;
     for(let i=0;i<DELAY_BUCKETS.length;i++){const [lo,hi]=DELAY_BUCKETS[i];if(it.delayBy>=lo&&it.delayBy<=hi){byBucket[DELAY_LABELS[i]]++;break;}}
   });
-  const tbl=(data,label,colors,orderKeys)=>{
+  const tbl=(data,label,dim,colors,orderKeys)=>{
     const keys=orderKeys||Object.keys(data).sort((a,b)=>data[b]-data[a]);
     const body=keys.filter(k=>data[k]).map(k=>{
       const pct=Math.round(data[k]/total*100);
       const sw=colors&&colors[k]?`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[k]};margin-right:6px;vertical-align:middle;"></span>`:'';
-      return `<tr><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:#e74c3c;">${data[k]}</td><td style="text-align:right;color:var(--muted);">${pct}%</td><td><div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#e74c3c;"></div></div></td></tr>`;
+      const esc=String(k).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      return `<tr onclick="povShowDelayedByDim('${dim}','${esc}')" style="cursor:pointer;"><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:#e74c3c;">${data[k]}</td><td style="text-align:right;color:var(--muted);">${pct}%</td><td><div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#e74c3c;"></div></div></td></tr>`;
     }).join('');
     return `<div class="table-wrap" style="margin-bottom:14px;"><table style="font-size:12px;width:100%;"><thead><tr><th>${label}</th><th style="text-align:right;">Delayed</th><th style="text-align:right;">%</th><th style="min-width:100px;">Dist</th></tr></thead><tbody>${body}</tbody></table></div>`;
   };
@@ -4578,17 +4580,67 @@ function povShowCityDetail(idx){
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
   ov.innerHTML=`<div class="pmr-modal" style="max-width:860px;max-height:92vh;display:flex;flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
-      <div><div style="font-size:15px;font-weight:600;">Delayed Leads — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${total} project(s) delayed vs PO timeline</div></div>
+      <div><div style="font-size:15px;font-weight:600;">Delayed Leads — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${total} project(s) delayed vs PO timeline · click any row for project list</div></div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
     </div>
     <div style="overflow:auto;">
-      ${sect('ti-building','By City',tbl(byCity,'City'))}
-      ${sect('ti-ruler-2','By Size Category',tbl(bySize,'Size',SIZE_CAT_COLORS,SIZE_CATEGORIES))}
-      ${sect('ti-user','By PE',tbl(byPE,'PE'))}
-      ${sect('ti-clock-exclamation','By Aging Bucket',tbl(byBucket,'Bucket',null,DELAY_LABELS))}
+      ${sect('ti-building','By City',tbl(byCity,'City','city'))}
+      ${sect('ti-ruler-2','By Size Category',tbl(bySize,'Size','size',SIZE_CAT_COLORS,SIZE_CATEGORIES))}
+      ${sect('ti-user','By PE',tbl(byPE,'PE','pe'))}
+      ${sect('ti-clock-exclamation','By Aging Bucket',tbl(byBucket,'Bucket','bucket',null,DELAY_LABELS))}
     </div>
   </div>`;
   ov.style.display='flex';
+}
+
+function povShowDelayedByDim(dim,val){
+  const list=window._povDelayedList||[];
+  const filtered=list.filter(it=>{
+    if(dim==='city')return (lv(it.row,LEAD_COL.CITY)||'—')===val;
+    if(dim==='size')return sizeCategoryOf(it.row)===val;
+    if(dim==='pe')return (lv(it.row,LEAD_COL.PE)||'Not Assigned')===val;
+    if(dim==='bucket'){const i=DELAY_LABELS.indexOf(val);if(i<0)return false;const [lo,hi]=DELAY_BUCKETS[i];return it.delayBy>=lo&&it.delayBy<=hi;}
+    return false;
+  }).sort((a,b)=>b.delayBy-a.delayBy);
+  if(!filtered.length)return;
+  const dimLabel={city:'City',size:'Size',pe:'PE',bucket:'Aging'}[dim]||dim;
+  const cards=filtered.map(it=>{
+    const x=it.row;
+    const pid=lv(x,LEAD_COL.PID),name=lv(x,LEAD_COL.PNAME);
+    const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    const city=lv(x,LEAD_COL.CITY)||'—';
+    const cat=sizeCategoryOf(x);
+    const catColor=SIZE_CAT_COLORS[cat];
+    const currentPhase=povGetCurrentPhase(pid);
+    return `<div class="pemr-card" style="border-left:3px solid #e74c3c;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:13px;">${pemrEsc(name)}</span>
+        <span style="font-size:10px;color:var(--muted);">${pemrEsc(pid)}</span>
+        <span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;">${cat}</span>
+        <span style="margin-left:auto;font-size:11px;padding:3px 8px;background:rgba(231,76,60,0.15);color:#e74c3c;border:1px solid rgba(231,76,60,0.3);border-radius:12px;font-weight:700;">⚠ ${it.delayBy}d delayed</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        <div><span style="color:var(--muted);">City:</span> <b>${pemrEsc(city)}</b></div>
+        <div><span style="color:var(--muted);">PE:</span> ${pemrEsc(pe)}</div>
+        <div><span style="color:var(--muted);">PO Start:</span> <b>${fmtDate(it.poStart)}</b></div>
+        <div><span style="color:var(--muted);">PO Days:</span> <b>${it.poDays}d</b></div>
+        <div><span style="color:var(--muted);">Project TAT:</span> <b>${it.projTat}d</b></div>
+        <div><span style="color:var(--muted);">Completion:</span> <b>${it.m.weightedPct}%</b></div>
+        <div style="grid-column:span 2;"><span style="color:var(--muted);">Current Phase:</span> <b style="color:#4f8ef7;">${pemrEsc(currentPhase.phase)}</b> ${currentPhase.pending?`<span style="color:#e74c3c;">· pending ${currentPhase.pending}d</span>`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const ov=document.getElementById('pemr-modal-ov');
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button onclick="povShowDelayedLeads()" title="Back" style="background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);cursor:pointer;padding:3px 8px;font-size:12px;"><i class="ti ti-arrow-left"></i></button>
+        <div><div style="font-size:15px;font-weight:600;">Delayed — ${dimLabel}: ${pemrEsc(val)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${filtered.length} project(s) · sorted by delay</div></div>
+      </div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
+  </div>`;
 }
 
   
