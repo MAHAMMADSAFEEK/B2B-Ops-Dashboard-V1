@@ -2537,10 +2537,20 @@ function buildPMR(){
     cur.items.push({vendor:v(x,1),topic:v(x,2),tech:v(x,3),help:v(x,4),tbtRep:v(x,PMR_TBT.TBTREP),dprRep:v(x,PMR_TBT.DPRREP)});
     tbtIdx[k]=cur;
   });
+const Dp_CID=ci(D.dpr.h,'ChildID','child');
+  // Build a pid list from Lead Tracker so we can match DPR rows by ChildID prefix too
+  const allPids=new Set();D.lead.r.forEach(x=>{const p=lv(x,LEAD_COL.PID);if(p)allPids.add(p);});
   D.dpr.r.forEach(x=>{
-    const uid=v(x,Dp_UID),pid=uidToProj[uid],d=parseDate(v(x,Dp_TS));
-    if(!pid||!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
-    const k=pid+'|'+pmrKey(d);(dprByPD[k]=dprByPD[k]||[]).push({plan:v(x,1),mp:v(x,2),status:v(x,3),pct:v(x,4)});
+    const uid=v(x,Dp_UID),cid=v(x,Dp_CID),d=parseDate(v(x,Dp_TS));
+    if(!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
+    let pid=uidToProj[uid]||'';
+    if(!pid && cid){
+      // Try to find pid by ChildID prefix match against Lead Tracker
+      for(const p of allPids){if(cid.startsWith(p)){pid=p;break;}}
+    }
+    if(!pid)return;
+    const k=pid+'|'+pmrKey(d);
+    (dprByPD[k]=dprByPD[k]||[]).push({plan:v(x,1),mp:v(x,2),status:v(x,3),pct:v(x,4)});
   });
   D.lead.r.forEach(x=>{const pid=lv(x,LEAD_COL.PID);if(pid)projName[pid]=lv(x,LEAD_COL.PNAME)||pid;});
   const projDates={};Object.keys(projDatesSet).forEach(p=>{projDates[p]=[...projDatesSet[p]].sort((a,b)=>a-b);});
@@ -3140,10 +3150,20 @@ function buildPEMR(){
     cur.items.push({vendor:v(x,1),topic:v(x,2),tech:v(x,3),help:v(x,4),tbtRep:v(x,PMR_TBT.TBTREP),dprRep:v(x,PMR_TBT.DPRREP)});
     tbtByPD[k]=cur;
   });
+const Dp_CID=ci(D.dpr.h,'ChildID','child');
+  // Build a pid list from Lead Tracker so we can match DPR rows by ChildID prefix too
+  const allPids=new Set();D.lead.r.forEach(x=>{const p=lv(x,LEAD_COL.PID);if(p)allPids.add(p);});
   D.dpr.r.forEach(x=>{
-    const uid=v(x,Dp_UID),pid=uidToProj[uid],d=parseDate(v(x,Dp_TS));
-    if(!pid||!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
-    const k=pid+'|'+pmrKey(d);(dprByPD[k]=dprByPD[k]||[]).push({plan:v(x,1),mp:v(x,2),status:v(x,3),pct:v(x,4)});
+    const uid=v(x,Dp_UID),cid=v(x,Dp_CID),d=parseDate(v(x,Dp_TS));
+    if(!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
+    let pid=uidToProj[uid]||'';
+    if(!pid && cid){
+      // Try to find pid by ChildID prefix match against Lead Tracker
+      for(const p of allPids){if(cid.startsWith(p)){pid=p;break;}}
+    }
+    if(!pid)return;
+    const k=pid+'|'+pmrKey(d);
+    (dprByPD[k]=dprByPD[k]||[]).push({plan:v(x,1),mp:v(x,2),status:v(x,3),pct:v(x,4)});
   });
   const tbtIdx=tbtByPD; // cell rendering uses tbt/dpr booleans
   const attProjDate={has:k=>!!attByPD[k]};
