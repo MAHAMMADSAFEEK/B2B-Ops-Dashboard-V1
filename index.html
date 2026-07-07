@@ -2576,12 +2576,26 @@ const projRows=D.lead.r.filter(x=>{
     const pname=lv(x,LEAD_COL.PNAME)||'—';
     const size=lv(x,LEAD_COL.SIZE)||'—';
     const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
-const m=computeProjectMetrics(pid);
+// Days where Pre-Commissioning was completed (DPR entry with 100% or "complet")
+    const pcDays=new Set();
+    const _nrmP=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    const D_UID_P=ci(D.dpr.h,'UniqueID','unique'),D_CID_P=ci(D.dpr.h,'ChildID','child'),D_PLAN_P=ci(D.dpr.h,'WorkPlan','plan','work'),D_TS_P=ci(D.dpr.h,'Timestamp','time'),D_PCT_P=ci(D.dpr.h,'%','completion','percent'),D_TASK_P=ci(D.dpr.h,'CompletedTask','completed task');
+    const uidsForPid=new Set(D.att.r.filter(r=>v(r,ATT_COL.PID)===pid).map(r=>v(r,ATT_COL.UID)).filter(Boolean));
+    D.dpr.r.forEach(r=>{
+      const uid=v(r,D_UID_P),cid=v(r,D_CID_P);
+      if(!(uidsForPid.has(uid)||cid.startsWith(pid)))return;
+      if(!_nrmP(v(r,D_PLAN_P)).includes('precommission'))return;
+      const pct=parseFloat(v(r,D_PCT_P))||0;
+      const task=String(v(r,D_TASK_P)||'').toLowerCase();
+      if(!(pct>=100||task.includes('complet')))return;
+      const dt=parseDate(v(r,D_TS_P));
+      if(dt)pcDays.add(pmrKey(dt));
+    });
     const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
       const c=pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
-      const dMs=d.getTime();
-      const inInstall=m.startDate && ((m.endDate?dMs<=m.endDate.getTime():dMs<=today.getTime()) && dMs>=m.startDate.getTime());
+      const inInstall=pcDays.has(pmrKey(d));
+  
       let labelHtml=c.label;
       if(c.remark){
         const rk=(pid+'|'+pmrKey(d)).replace(/'/g,"\\'");
