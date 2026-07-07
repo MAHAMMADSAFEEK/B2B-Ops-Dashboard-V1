@@ -1790,7 +1790,7 @@ function clearPOVFilters(){
 }
 
 function computeProjectMetrics(projId){
-  if(!projId)return{dprCount:0,attCount:0,startDate:null,endDate:null,tat:null,finalStage:'—',weightedPct:0,status:'pending',lastDate:null,lastAttDate:null,lastActivity:null,activityCount:0};
+  if(!projId)return{dprCount:0,attCount:0,startDate:null,endDate:null,tat:null,finalStage:'—',weightedPct:0,status:'pending',installStatus:'pending',lastDate:null,lastAttDate:null,lastActivity:null,activityCount:0};
   if(_povCache[projId])return _povCache[projId];
   const ah=D.att.h,ar=D.att.r;
   const A_UID=ci(ah,'UniqueID','unique id'),A_PID=ci(ah,'ProjectID','project id'),A_DATE=ci(ah,'Date');
@@ -1806,6 +1806,19 @@ const dates=dprRows.map(x=>parseDate(v(x,D_TS))).filter(Boolean).sort((a,b)=>a-b
   const _nrm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
   const ssDates=dprRows.filter(x=>_nrm(v(x,D_PLAN)).includes('structureshifting')).map(x=>parseDate(v(x,D_TS))).filter(Boolean).sort((a,b)=>a-b);
   const pcDates=dprRows.filter(x=>_nrm(v(x,D_PLAN)).includes('precommission')).map(x=>parseDate(v(x,D_TS))).filter(Boolean).sort((a,b)=>a-b);
+  // Installation status: 'done' if latest Pre-Commissioning DPR entry marks completion
+  let installStatus='pending';
+  const pcRowsAll=dprRows.filter(x=>_nrm(v(x,D_PLAN)).includes('precommission'));
+  if(pcRowsAll.length){
+    const pcSorted=[...pcRowsAll].sort((a,b)=>{const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));return (da?da.getTime():0)-(db?db.getTime():0);});
+    const latestPc=pcSorted[pcSorted.length-1];
+    const latestPct=parseFloat(v(latestPc,D_PCT))||0;
+    const latestTask=String(v(latestPc,D_TASK)||'').toLowerCase();
+    if(latestPct>=100||latestTask.includes('complet'))installStatus='done';
+    else installStatus='wip';
+  } else if(dprRows.length){
+    installStatus='wip';
+  }
   const startDate=ssDates.length?ssDates[0]:null;
   const endDate=pcDates.length?pcDates[pcDates.length-1]:null;
   const today=new Date();today.setHours(0,0,0,0);
@@ -1848,7 +1861,7 @@ let completedPctSum=0;
   // lastActivity = most recent of latest attendance date and latest DPR date.
   const lastActivity=[lastAttDate,lastDate].filter(Boolean).sort((a,b)=>b-a)[0]||null;
   const activityCount=attRows.length+dprRows.length;
-  const res={dprCount:dprRows.length,attCount:attRows.length,startDate,endDate,tat,finalStage,lastStatus,weightedPct,status,lastDate,lastAttDate,lastActivity,activityCount};
+  const res={dprCount:dprRows.length,attCount:attRows.length,startDate,endDate,tat,finalStage,lastStatus,weightedPct,status,installStatus,lastDate,lastAttDate,lastActivity,activityCount};
   _povCache[projId]=res;
   return res;
 }
@@ -1926,7 +1939,7 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
   const tag=document.getElementById('pov-filter-tag');
   if(tag){tag.style.display=activeFilters?'inline':'none';if(activeFilters)tag.textContent=`${activeFilters} filter${activeFilters>1?'s':''} active`;}
   const totalProjects=rows.length;
-  let totalSize=0,assigned=0,notAssigned=0,completed=0,inProcess=0,pending=0,pendingAssigned=0,pendingNotAssigned=0;
+  let totalSize=0,assigned=0,notAssigned=0,completed=0,inProcess=0,pending=0,pendingAssigned=0,pendingNotAssigned=0,installCompleted=0;
   const cityCount={},citySize={},sizeCatCount={};
   rows.forEach(x=>{
     const projId=lv(x,LEAD_COL.PID);
@@ -1940,22 +1953,24 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     const cat=sizeCategoryOf(x);
     sizeCatCount[cat]=(sizeCatCount[cat]||0)+1;
     const m=computeProjectMetrics(projId);
-    if(m.status==='done')completed++;
+if(m.status==='done')completed++;
     else if(m.status==='wip')inProcess++;
     else {pending++; if(peAssigned)pendingAssigned++; else pendingNotAssigned++;}
+    if(m.installStatus==='done')installCompleted++;
   });
   document.getElementById('pov-metrics').innerHTML=
     metric('ti-building-skyscraper','Total Projects',totalProjects,'From Lead Tracker','#4f8ef7')+
     metric('ti-ruler-2','Total Project Size',Math.round(totalSize).toLocaleString(),'Sum of capacity','#9b6dff')+
     metricWithBar('ti-user-off','Not Assigned',notAssigned,`${totalProjects?Math.round(notAssigned/totalProjects*100):0}% of projects`,'#e74c3c',totalProjects?notAssigned/totalProjects*100:0,'#e74c3c')+
-    metricWithBar('ti-circle-check','Completed',completed,`${totalProjects?Math.round(completed/totalProjects*100):0}% of projects`,'#34c98a',totalProjects?completed/totalProjects*100:0,'#34c98a')+
+    metricWithBar('ti-check','Installation Completed',installCompleted,`${totalProjects?Math.round(installCompleted/totalProjects*100):0}% · Pre-Commissioning done`,'#34c98a',totalProjects?installCompleted/totalProjects*100:0,'#34c98a')+
+    metricWithBar('ti-circle-check','Project Completed',completed,`${totalProjects?Math.round(completed/totalProjects*100):0}% · all workplan done`,'#0d9488',totalProjects?completed/totalProjects*100:0,'#0d9488')+
     metricWithBar('ti-loader','In Process',inProcess,`${totalProjects?Math.round(inProcess/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?inProcess/totalProjects*100:0,'#f5a623')+
     metricWithBar('ti-clock','Pending',pending,`${pendingAssigned} actual (assigned) · ${pendingNotAssigned} not assigned`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c')+
     (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})();
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
   document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Final Update Stage</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
+  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
   const tbody=document.getElementById('pov-body');
   if(!rows.length){tbody.innerHTML='<tr><td colspan="17" class="empty">No projects match the selected filters</td></tr>';return;}
   const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
@@ -1969,11 +1984,14 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     const catColor=SIZE_CAT_COLORS[cat];
     const catCell=`<span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;font-weight:600;">${cat}</span>`;
     const m=computeProjectMetrics(projId);
-    let stageBadge;
-    if(m.status==='done')stageBadge='<span class="badge bg">✓ Completed</span>';
-    else if(m.status==='wip')stageBadge='<span class="badge bo">⟳ In Process</span>';
-    else stageBadge='<span class="badge bgr">— Pending</span>';
-    const finalStageTxt=m.finalStage&&m.finalStage!=='—'?`<div style="font-size:11px;color:var(--muted);margin-top:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.finalStage.replace(/"/g,'&quot;')}">${m.finalStage}</div>`:'';
+    let stageBadge;let installBadge;
+    if(m.installStatus==='done')installBadge='<span class="badge bg">✓ Completed</span>';
+    else if(m.installStatus==='wip')installBadge=`<span class="badge bo">⟳ In Process</span>${m.finalStage&&m.finalStage!=='—'?`<div style="font-size:11px;color:var(--muted);margin-top:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.finalStage.replace(/"/g,'&quot;')}">${m.finalStage}</div>`:''}`;
+    else installBadge='<span class="badge bgr">— Pending</span>';
+    let projBadge;
+    if(m.status==='done')projBadge='<span class="badge bg">✓ Completed</span>';
+    else if(m.status==='wip')projBadge=`<span class="badge bo">⟳ In Process</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${m.weightedPct}%</div>`;
+    else projBadge='<span class="badge bgr">— Pending</span>';
     const escId=projId.replace(/'/g,"\\'");
     const escName=projName.replace(/'/g,"\\'");
     const pct=m.weightedPct;
@@ -2010,7 +2028,8 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
       })()}</td>
       
       <td>${pctCell}</td>
-      <td>${stageBadge}${finalStageTxt}</td>
+      <td>${installBadge}</td>
+      <td>${projBadge}</td>
       <td style="font-size:11px;color:var(--muted)">—</td>
             <td>${phaseLink}</td>
       <td>${reportLink}</td> 
@@ -3878,7 +3897,7 @@ function buildHRC(){
   const _origBuildPOV=buildPOV;
   buildPOV=function(){_origBuildPOV.apply(this,arguments);povWireDrill();};
 
-  const METRIC_KEYS=['total','size','notassigned','completed','inprocess','pending'];
+  const METRIC_KEYS=['total','size','notassigned','installcompleted','completed','inprocess','pending','delayed'];
 
   function povWireDrill(){
     document.querySelectorAll('#pov-metrics .metric').forEach((c,i)=>{
@@ -3919,7 +3938,9 @@ function buildHRC(){
     const bucketOf=(x)=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));if(!m.activityCount||!m.lastActivity)return'upNever';const days=Math.floor((today-m.lastActivity)/(1000*60*60*24));if(days>=30)return'up30';if(days>=15)return'up15';if(days>=7)return'up7';return'upOk';};
     if(_povDelayBucket)rows=rows.filter(x=>bucketOf(x)===_povDelayBucket);
     if(key==='notassigned')      rows=rows.filter(x=>!lv(x,LEAD_COL.PE));
+    else if(key==='installcompleted')rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).installStatus==='done');
     else if(key==='completed')   rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done');
+    else if(key==='delayed')     rows=rows.filter(x=>{const d=povComputeDelay(x);return d&&d.delayBy>0&&!d.isDone;});
     else if(key==='inprocess')   rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='wip');
     else if(key==='pending')     rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='pending');
     else if(key.startsWith('city:'))  rows=rows.filter(x=>lv(x,LEAD_COL.CITY)===key.slice(5));
@@ -3929,7 +3950,7 @@ function buildHRC(){
   }
 
   function povDrillTitle(key){
-    const m={total:'Total Projects',size:'Total Project Size',notassigned:'Not Assigned',completed:'Completed',inprocess:'In Process',pending:'Pending'};
+    const m={total:'Total Projects',size:'Total Project Size',notassigned:'Not Assigned',installcompleted:'Installation Completed',completed:'Project Completed',inprocess:'In Process',pending:'Pending',delayed:'Delayed Leads'};
     if(m[key])return m[key];
     if(key.startsWith('city:'))return 'Projects in '+key.slice(5);
     if(key.startsWith('size:'))return key.slice(5)+' Size Projects';
@@ -4201,7 +4222,7 @@ function povRenderExtraReports(){
 // ── 1. INSTALLATION COMPLETED MATRIX (City × Month) ─────────────
 function povRenderInstMatrix(rows){
   const host=document.getElementById('pov-inst-matrix');if(!host)return;
-  const installed=rows.filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.endDate && m.weightedPct>=100;});
+  const installed=rows.filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.installStatus==='done' && m.endDate;});
   if(!installed.length){host.innerHTML='<div class="empty">No completed installations in current filter</div>';return;}
   const matrix={},cities=new Set(),months=new Map();
   installed.forEach(x=>{
@@ -4280,7 +4301,7 @@ function povShowInstCell(key){
 }
 
 function povShowInstSummary(){
-  const rows=povGetBaseRows().filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.endDate && m.weightedPct>=100;});
+  const rows=povGetBaseRows().filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.installStatus==='done' && m.endDate;});
   if(!rows.length){return;}
   // By PE, month-on-month
   const peByMonth={},sizeByMonth={},monthSet=new Set();
