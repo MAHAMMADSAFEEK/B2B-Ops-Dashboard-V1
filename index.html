@@ -451,7 +451,7 @@ tr:hover td{background:var(--surface2);}
   <div id="tab-hrc" class="tab-content">
     <div class="pe-filter-bar">
       <div class="pe-filter-group"><label>Month</label><select id="hrc-f-month" onchange="onHRCMonthChange()"></select></div>
-      <div class="pe-filter-group"><label>Week</label>
+<div class="pe-filter-group"><label>Week</label>
         <select id="hrc-f-week" onchange="onHRCWeekChange()">
           <option value="">All Weeks</option>
           <option value="1">Week 1 (1–7)</option>
@@ -460,6 +460,9 @@ tr:hover td{background:var(--surface2);}
           <option value="4">Week 4 (22–28)</option>
           <option value="5">Week 5 (29–end)</option>
         </select>
+      </div>
+      <div class="pe-filter-group"><label>Date</label>
+        <select id="hrc-f-date" onchange="onHRCDateChange()"><option value="">All Days</option></select>
       </div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions">
@@ -3865,9 +3868,14 @@ function buildHRC(){
   });
 
   // Counters
-  const projC=pid=>{const a=projAtt[pid]||{onsite:0,without:0,noact:0,hasAny:false};return {projects:1,updated:a.hasAny?1:0,pending:a.hasAny?0:1,onsite:a.onsite,without:a.without,noact:a.noact};};
-  const sumC=(a,b)=>({projects:a.projects+b.projects,updated:a.updated+b.updated,pending:a.pending+b.pending,onsite:a.onsite+b.onsite,without:a.without+b.without,noact:a.noact+b.noact});
-  const zeroC={projects:0,updated:0,pending:0,onsite:0,without:0,noact:0};
+// Counters — 'pending' here means "no attendance update"; separately track project-status Completed/Pending
+  const projC=pid=>{
+    const a=projAtt[pid]||{onsite:0,without:0,noact:0,hasAny:false};
+    const m=computeProjectMetrics(pid);
+    return {projects:1,updated:a.hasAny?1:0,pending:a.hasAny?0:1,onsite:a.onsite,without:a.without,noact:a.noact,completed:m.status==='done'?1:0,projPending:m.status==='pending'?1:0,pctSum:m.weightedPct||0};
+  };
+  const sumC=(a,b)=>({projects:a.projects+b.projects,updated:a.updated+b.updated,pending:a.pending+b.pending,onsite:a.onsite+b.onsite,without:a.without+b.without,noact:a.noact+b.noact,completed:a.completed+b.completed,projPending:a.projPending+b.projPending,pctSum:a.pctSum+b.pctSum});
+  const zeroC={projects:0,updated:0,pending:0,onsite:0,without:0,noact:0,completed:0,projPending:0,pctSum:0};
 
   // Render rows respecting expansion state
   const rows=[];
@@ -3905,9 +3913,9 @@ function buildHRC(){
     });
   });
 
-  head.innerHTML=`<tr><th style="width:34px;text-align:center;">#</th><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Onsite Visit</th><th style="text-align:right;">Without Visit</th><th style="text-align:right;">No Activity</th></tr>`;
+  head.innerHTML=`<tr><th style="width:34px;text-align:center;">#</th><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Not Updated</th><th style="text-align:right;">Onsite Visit</th><th style="text-align:right;">Without Visit</th><th style="text-align:right;">No Activity</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Completion %</th></tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="8" class="empty">No data</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="11" class="empty">No data</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
@@ -3927,6 +3935,9 @@ function buildHRC(){
       ? `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>${r.sublabel?`<div style="font-size:10px;color:var(--muted);margin-left:0;margin-top:2px;">${pemrEsc(r.sublabel)}</div>`:''}`
       : `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>`;
     const projCount=r.counts.projects;
+const avgPct=projCount?Math.round(r.counts.pctSum/projCount):0;
+    const pctCol=avgPct>=75?'#34c98a':avgPct>=40?'#f5a623':'#e74c3c';
+    const pctBar=`<div style="display:inline-flex;align-items:center;gap:6px;min-width:80px;justify-content:flex-end;"><div style="width:50px;height:5px;border-radius:3px;background:var(--bg);overflow:hidden;"><div style="width:${avgPct}%;height:100%;background:${pctCol};"></div></div><span style="color:${pctCol};font-weight:600;min-width:32px;">${avgPct}%</span></div>`;
     return `<tr class="hrc-row-${r.level}">
       ${numberCell}
       <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${lvlIcon}" style="color:${lvlColor};font-size:14px;"></i>${labelNode}</span></td>
@@ -3936,6 +3947,9 @@ function buildHRC(){
       <td style="text-align:right;color:${r.counts.onsite?'#34c98a':'var(--muted)'};">${r.counts.onsite||'—'}</td>
       <td style="text-align:right;color:${r.counts.without?'#3bc0d8':'var(--muted)'};">${r.counts.without||'—'}</td>
       <td style="text-align:right;color:${r.counts.noact?'#f5a623':'var(--muted)'};">${r.counts.noact||'—'}</td>
+      <td style="text-align:right;color:${r.counts.completed?'#34c98a':'var(--muted)'};font-weight:500;">${r.counts.completed||'—'}</td>
+      <td style="text-align:right;color:${r.counts.projPending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.counts.projPending||'—'}</td>
+      <td style="text-align:right;">${pctBar}</td>
     </tr>`;
   }).join('');
 }
