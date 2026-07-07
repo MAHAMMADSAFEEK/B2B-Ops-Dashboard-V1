@@ -220,6 +220,11 @@ tr:hover td{background:var(--surface2);}
 .hrc-tg{background:var(--surface);border:1px solid var(--border2);border-radius:4px;cursor:pointer;width:20px;height:20px;line-height:1;font-size:13px;padding:0;margin-right:8px;vertical-align:middle;display:inline-flex;align-items:center;justify-content:center;}
 .hrc-tg:hover{background:var(--surface2);}
 
+
+ @keyframes pmrBlueBlink{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,0.6);}50%{box-shadow:0 0 0 3px rgba(79,142,247,0.35);}}
+.pmr-install{animation:pmrBlueBlink 1.4s ease-in-out infinite;border:1px solid rgba(79,142,247,0.55) !important;position:relative;}
+.pmr-install::before{content:'*';position:absolute;top:-2px;right:4px;color:#4f8ef7;font-weight:900;font-size:14px;text-shadow:0 0 4px rgba(79,142,247,0.6);}
+
 </style>
 </head>
 <body>
@@ -2571,16 +2576,19 @@ const projRows=D.lead.r.filter(x=>{
     const pname=lv(x,LEAD_COL.PNAME)||'—';
     const size=lv(x,LEAD_COL.SIZE)||'—';
     const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+const m=computeProjectMetrics(pid);
     const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
       const c=pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+      const dMs=d.getTime();
+      const inInstall=m.startDate && ((m.endDate?dMs<=m.endDate.getTime():dMs<=today.getTime()) && dMs>=m.startDate.getTime());
       let labelHtml=c.label;
       if(c.remark){
         const rk=(pid+'|'+pmrKey(d)).replace(/'/g,"\\'");
         _pmrRemarks[pid+'|'+pmrKey(d)]={remark:c.remark,proj:pname,date:fmtDate(d),title:(c.label+(c.sub?' '+c.sub:''))};
         labelHtml=`<a onclick="event.stopPropagation();pmrShowRemark('${rk}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer;">${c.label}</a>`;
       }
-      return `<td><div class="pmr-cell ${c.cls}" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">${labelHtml}${c.sub?`<span class="pmr-sub">${c.sub}</span>`:''}${c.tags||''}</div></td>`;
+      return `<td><div class="pmr-cell ${c.cls}${inInstall?' pmr-install':''}" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;" ${inInstall?'title="Installation period"':''}>${labelHtml}${c.sub?`<span class="pmr-sub">${c.sub}</span>`:''}${c.tags||''}</div></td>`;
     }).join('');
     return `<tr>
       <td class="pmr-c0" style="font-size:11px;">${city}</td>
