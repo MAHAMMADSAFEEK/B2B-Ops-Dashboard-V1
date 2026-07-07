@@ -350,9 +350,15 @@ tr:hover td{background:var(--surface2);}
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title"><i class="ti ti-calendar-check"></i> Installation Completed — City × Month</div>
-      <div id="pov-inst-matrix"></div>
+<div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-calendar-check"></i> Installation Completed — City × Month</div>
+        <div id="pov-inst-matrix"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-circle-check"></i> Project Completed — City × Month</div>
+        <div id="pov-proj-matrix"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -4214,6 +4220,7 @@ function povGetBaseRows(){
 function povRenderExtraReports(){
   const rows=povGetBaseRows();
   povRenderInstMatrix(rows);
+  povRenderProjMatrix(rows);
   povRenderDelayAging(rows);
   povRenderTopPE(rows);
   povRenderTopCity(rows);
@@ -4237,11 +4244,15 @@ function povRenderInstMatrix(rows){
     if(!matrix[city][mk])matrix[city][mk]=[];
     matrix[city][mk].push({pid:lv(x,LEAD_COL.PID),name:lv(x,LEAD_COL.PNAME),row:x,m});
   });
-  const monthKeys=[...months.keys()].sort();
+  // Keep only current month + last 5 months (6 total)
+  const today=new Date();
+  const cutoff=new Date(today.getFullYear(),today.getMonth()-5,1);
+  const cutoffKey=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0');
+  const monthKeys=[...months.keys()].filter(k=>k>=cutoffKey).sort();
   const cityList=[...cities].sort();
   const rowTotals={},colTotals={};let grand=0;
   cityList.forEach(c=>{rowTotals[c]=0;monthKeys.forEach(mk=>{const n=(matrix[c][mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
-  const cityRows=cityList.sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
+  const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
     const cells=monthKeys.map(mk=>{
       const items=matrix[c][mk]||[];
       if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
@@ -4690,6 +4701,81 @@ function povShowDelayedByDim(dim,val){
     </div>
     <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
   </div>`;
+}
+
+  function povRenderProjMatrix(rows){
+  const host=document.getElementById('pov-proj-matrix');if(!host)return;
+  const completed=rows.filter(x=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.status==='done' && m.endDate;});
+  const today=new Date();
+  const cutoff=new Date(today.getFullYear(),today.getMonth()-5,1);
+  const cutoffKey=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0');
+  if(!completed.length){host.innerHTML='<div class="empty">No completed projects in current filter</div>';return;}
+  const matrix={},cities=new Set(),months=new Map();
+  completed.forEach(x=>{
+    const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+    const city=lv(x,LEAD_COL.CITY)||'—';
+    const d=m.endDate;
+    const mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    if(mk<cutoffKey)return;
+    const ml=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
+    months.set(mk,ml);
+    cities.add(city);
+    if(!matrix[city])matrix[city]={};
+    if(!matrix[city][mk])matrix[city][mk]=[];
+    matrix[city][mk].push({pid:lv(x,LEAD_COL.PID),name:lv(x,LEAD_COL.PNAME),row:x,m});
+  });
+  const monthKeys=[...months.keys()].sort();
+  const cityList=[...cities];
+  const rowTotals={},colTotals={};let grand=0;
+  cityList.forEach(c=>{rowTotals[c]=0;monthKeys.forEach(mk=>{const n=((matrix[c]||{})[mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
+  if(!grand){host.innerHTML='<div class="empty">No completed projects in the last 6 months</div>';return;}
+  const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
+    const cells=monthKeys.map(mk=>{
+      const items=(matrix[c]||{})[mk]||[];
+      if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
+      const esc=(c+'|'+mk).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      return `<td style="text-align:center;"><span onclick="povShowProjCell('${esc}')" style="cursor:pointer;display:inline-block;min-width:32px;padding:3px 10px;background:rgba(13,148,136,0.15);color:#0d9488;border:1px solid rgba(13,148,136,0.3);border-radius:12px;font-weight:600;font-size:12px;">${items.length}</span></td>`;
+    }).join('');
+    return `<tr><td style="font-weight:500;">${pemrEsc(c)}</td>${cells}<td style="text-align:right;font-weight:700;color:#0d9488;">${rowTotals[c]}</td></tr>`;
+  }).join('');
+  const totalRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);"><td style="font-weight:700;">Total</td>${monthKeys.map(mk=>`<td style="text-align:center;font-weight:700;color:#0d9488;">${colTotals[mk]}</td>`).join('')}<td style="text-align:right;font-weight:700;color:#0d9488;">${grand}</td></tr>`;
+  window._povProjMatrix=matrix;
+  host.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${grand} projects completed · last 6 months. Click a cell for project list.</div><div class="table-wrap" style="max-height:400px;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>City</th>${monthKeys.map(mk=>`<th style="text-align:center;">${months.get(mk)}</th>`).join('')}<th style="text-align:right;">Total</th></tr></thead><tbody>${cityRows}${totalRow}</tbody></table></div>`;
+}
+
+function povShowProjCell(key){
+  const [city,mk]=key.split('|');
+  const items=((window._povProjMatrix||{})[city]||{})[mk]||[];
+  const [y,m]=mk.split('-').map(Number);
+  const ml=new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const cards=items.map(it=>{
+    const pe=lv(it.row,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    const cat=sizeCategoryOf(it.row);
+    const catColor=SIZE_CAT_COLORS[cat];
+    return `<div class="pemr-card" style="border-left:3px solid #0d9488;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:13px;">${pemrEsc(it.name)}</span>
+        <span style="font-size:10px;color:var(--muted);">${pemrEsc(it.pid)}</span>
+        <span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;margin-left:auto;">${cat}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        <div><span style="color:var(--muted);">Install Start:</span> <b>${it.m.startDate?fmtDate(it.m.startDate):'—'}</b></div>
+        <div><span style="color:var(--muted);">Project End:</span> <b style="color:#0d9488;">${fmtDate(it.m.endDate)}</b></div>
+        <div><span style="color:var(--muted);">PE:</span> ${pemrEsc(pe)}</div>
+        <div><span style="color:var(--muted);">Completion:</span> <b>${it.m.weightedPct}%</b></div>
+      </div>
+    </div>`;
+  }).join('');
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div><div style="font-size:15px;font-weight:600;">Completed Projects — ${pemrEsc(city)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${ml} · ${items.length} project(s)</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
+  </div>`;
+  ov.style.display='flex';
 }
 
   
