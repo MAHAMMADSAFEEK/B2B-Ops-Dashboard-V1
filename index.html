@@ -3913,9 +3913,9 @@ function buildHRC(){
     });
   });
 
-  head.innerHTML=`<tr><th style="width:34px;text-align:center;">#</th><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Not Updated</th><th style="text-align:right;">Onsite Visit</th><th style="text-align:right;">Without Visit</th><th style="text-align:right;">No Activity</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Completion %</th></tr>`;
+  head.innerHTML=`<tr><th style="width:34px;text-align:center;">#</th><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Not Updated</th><th style="text-align:right;">Onsite Visit</th><th style="text-align:right;">Without Visit</th><th style="text-align:right;">No Activity</th></tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="11" class="empty">No data</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="8" class="empty">No data</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
@@ -3935,22 +3935,18 @@ function buildHRC(){
       ? `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>${r.sublabel?`<div style="font-size:10px;color:var(--muted);margin-left:0;margin-top:2px;">${pemrEsc(r.sublabel)}</div>`:''}`
       : `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>`;
     const projCount=r.counts.projects;
-const avgPct=projCount?Math.round(r.counts.pctSum/projCount):0;
-    const pctCol=avgPct>=75?'#34c98a':avgPct>=40?'#f5a623':'#e74c3c';
-    const pctBar=`<div style="display:inline-flex;align-items:center;gap:6px;min-width:80px;justify-content:flex-end;"><div style="width:50px;height:5px;border-radius:3px;background:var(--bg);overflow:hidden;"><div style="width:${avgPct}%;height:100%;background:${pctCol};"></div></div><span style="color:${pctCol};font-weight:600;min-width:32px;">${avgPct}%</span></div>`;
+
     return `<tr class="hrc-row-${r.level}">
       ${numberCell}
       <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${lvlIcon}" style="color:${lvlColor};font-size:14px;"></i>${labelNode}</span></td>
       <td style="text-align:right;font-weight:${fontWeight};color:${lvlColor};">${projCount}</td>
-      <td style="text-align:right;color:${r.counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${r.counts.updated||'—'}</td>
-      <td style="text-align:right;color:${r.counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.counts.pending||'—'}</td>
-      <td style="text-align:right;color:${r.counts.onsite?'#34c98a':'var(--muted)'};">${r.counts.onsite||'—'}</td>
-      <td style="text-align:right;color:${r.counts.without?'#3bc0d8':'var(--muted)'};">${r.counts.without||'—'}</td>
-      <td style="text-align:right;color:${r.counts.noact?'#f5a623':'var(--muted)'};">${r.counts.noact||'—'}</td>
-      <td style="text-align:right;color:${r.counts.completed?'#34c98a':'var(--muted)'};font-weight:500;">${r.counts.completed||'—'}</td>
-      <td style="text-align:right;color:${r.counts.projPending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.counts.projPending||'—'}</td>
-      <td style="text-align:right;">${pctBar}</td>
+<td style="text-align:right;color:${r.counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${r.counts.updated?`${r.counts.updated} <span style="color:var(--muted);font-weight:400;font-size:11px;">(${projCount?Math.round(r.counts.updated/projCount*100):0}%)</span>`:'—'}</td>
+      <td style="text-align:right;color:${r.counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.counts.pending?`${r.counts.pending} <span style="color:var(--muted);font-weight:400;font-size:11px;">(${projCount?Math.round(r.counts.pending/projCount*100):0}%)</span>`:'—'}</td>
+      <td style="text-align:right;color:${r.counts.onsite?'#34c98a':'var(--muted)'};">${r.counts.onsite?`${r.counts.onsite} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.onsite/r.counts.updated*100):0}%)</span>`:'—'}</td>
+      <td style="text-align:right;color:${r.counts.without?'#3bc0d8':'var(--muted)'};">${r.counts.without?`${r.counts.without} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.without/r.counts.updated*100):0}%)</span>`:'—'}</td>
+      <td style="text-align:right;color:${r.counts.noact?'#f5a623':'var(--muted)'};">${r.counts.noact?`${r.counts.noact} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.noact/r.counts.updated*100):0}%)</span>`:'—'}</td>
     </tr>`;
+    
   }).join('');
 }
 
