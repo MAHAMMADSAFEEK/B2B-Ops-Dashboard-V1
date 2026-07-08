@@ -383,6 +383,11 @@ tr:hover td{background:var(--surface2);}
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title"><i class="ti ti-clock-hour-4"></i> Phase-wise Average TAT — Installation Completed Projects</div>
+      <div id="pov-phase-tat"></div>
+    </div>
+
   </div>
 
 </div>
@@ -4283,6 +4288,9 @@ function povRenderExtraReports(){
   povRenderDelayAging(rows);
   povRenderTopPE(rows);
   povRenderTopCity(rows);
+  povRenderPhaseTAT(rows);
+}
+  
 }
 
 // ── 1. INSTALLATION COMPLETED MATRIX (City × Month) ─────────────
@@ -4830,6 +4838,185 @@ function povShowProjCell(key){
   ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:88vh;display:flex;flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
       <div><div style="font-size:15px;font-weight:600;">Completed Projects — ${pemrEsc(city)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${ml} · ${items.length} project(s)</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+  function povComputePhaseTAT(row){
+  // Returns {phases:{phaseName:{start,end,days}}, overall:{start,end,days}}
+  const pid=lv(row,LEAD_COL.PID);
+  const wr=D.workplan.r;
+  const dh=D.dpr.h,dr=D.dpr.r;
+  const D_PLAN=ci(dh,'WorkPlan','plan','work'),D_TS=ci(dh,'Timestamp','time'),D_UID=ci(dh,'UniqueID','unique'),D_CID=ci(dh,'ChildID','child'),D_TASK=ci(dh,'CompletedTask','completed task'),D_PCT=ci(dh,'%','completion','percent');
+  const ah=D.att.h,ar=D.att.r;
+  const A_UID=ci(ah,'UniqueID','unique id'),A_PID=ci(ah,'ProjectID','project id');
+  const uids=new Set(ar.filter(r=>v(r,A_PID)===pid).map(r=>v(r,A_UID)).filter(Boolean));
+  const dprRows=dr.filter(r=>{const u=v(r,D_UID),c=v(r,D_CID);return uids.has(u)||c.startsWith(pid);});
+  const norm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  // Group workplan by Phase (col C)
+  const phaseItems={};
+  wr.filter(x=>(x[0]||'').trim()).forEach(x=>{
+    const phase=(x[2]||'').trim()||'(No Phase)';
+    (phaseItems[phase]=phaseItems[phase]||[]).push((x[0]||'').trim());
+  });
+  const phases={};
+  Object.entries(phaseItems).forEach(([phase,plans])=>{
+    const dates=[];
+    plans.forEach(plan=>{
+      const pn=norm(plan);
+      dprRows.forEach(r=>{const dp=norm(v(r,D_PLAN));if(dp===pn||dp.includes(pn)||pn.includes(dp)){const d=parseDate(v(r,D_TS));if(d)dates.push(d);}});
+    });
+    if(!dates.length)return;
+    dates.sort((a,b)=>a-b);
+    const start=dates[0],end=dates[dates.length-1];
+    const days=Math.ceil((end-start)/(1000*60*60*24))+1;
+    phases[phase]={start,end,days};
+  });
+  // Overall = first DPR to last DPR
+  const allDates=dprRows.map(r=>parseDate(v(r,D_TS))).filter(Boolean).sort((a,b)=>a-b);
+  const overall=allDates.length?{start:allDates[0],end:allDates[allDates.length-1],days:Math.ceil((allDates[allDates.length-1]-allDates[0])/(1000*60*60*24))+1}:null;
+  return{phases,overall};
+}
+
+function povRenderPhaseTAT(rowsAll){
+  const host=document.getElementById('pov-phase-tat');if(!host)return;
+  const rows=rowsAll.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).installStatus==='done');
+  if(!rows.length){host.innerHTML='<div class="empty">No installation-completed projects in current filter</div>';return;}
+  // Phase order from Workplan col C
+  const phaseOrder=[];const seen=new Set();
+  D.workplan.r.filter(x=>(x[0]||'').trim()).forEach(x=>{const ph=(x[2]||'').trim()||'(No Phase)';if(!seen.has(ph)){seen.add(ph);phaseOrder.push(ph);}});
+  // Compute per-project TATs, cache
+  const perProj=rows.map(x=>({row:x,pid:lv(x,LEAD_COL.PID),name:lv(x,LEAD_COL.PNAME),city:lv(x,LEAD_COL.CITY)||'—',cat:sizeCategoryOf(x),tat:povComputePhaseTAT(x)}));
+  window._povPhaseTATData=perProj;
+  window._povPhaseOrder=phaseOrder;
+  // Compute avg per phase
+  const phaseAgg={};phaseOrder.forEach(p=>phaseAgg[p]={sum:0,count:0,min:null,max:null});
+  let ovSum=0,ovCnt=0,ovMin=null,ovMax=null;
+  perProj.forEach(p=>{
+    phaseOrder.forEach(ph=>{
+      const t=p.tat.phases[ph];if(!t)return;
+      phaseAgg[ph].sum+=t.days;phaseAgg[ph].count++;
+      if(phaseAgg[ph].min===null||t.days<phaseAgg[ph].min)phaseAgg[ph].min=t.days;
+      if(phaseAgg[ph].max===null||t.days>phaseAgg[ph].max)phaseAgg[ph].max=t.days;
+    });
+    if(p.tat.overall){ovSum+=p.tat.overall.days;ovCnt++;if(ovMin===null||p.tat.overall.days<ovMin)ovMin=p.tat.overall.days;if(ovMax===null||p.tat.overall.days>ovMax)ovMax=p.tat.overall.days;}
+  });
+  const rowHtml=phaseOrder.map((ph,i)=>{
+    const a=phaseAgg[ph];
+    if(!a.count)return `<tr><td style="color:var(--muted);text-align:center;">${i+1}</td><td>${pemrEsc(ph)}</td><td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td><td style="text-align:right;color:var(--muted);">—</td></tr>`;
+    const avg=Math.round(a.sum/a.count);
+    const esc=ph.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<tr onclick="povShowPhaseTATDetail('${esc}')" style="cursor:pointer;">
+      <td style="color:var(--muted);text-align:center;">${i+1}</td>
+      <td style="font-weight:500;"><i class="ti ti-stack-2" style="color:#4f8ef7;margin-right:6px;"></i>${pemrEsc(ph)}</td>
+      <td style="text-align:right;"><span onclick="event.stopPropagation();povShowPhaseTATProjects('${esc}')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;font-weight:600;">${a.count}</span></td>
+      <td style="text-align:right;font-weight:700;color:#f5a623;">${avg}d</td>
+      <td style="text-align:right;color:#34c98a;">${a.min}d</td>
+      <td style="text-align:right;color:#e74c3c;">${a.max}d</td>
+    </tr>`;
+  }).join('');
+  const ovAvg=ovCnt?Math.round(ovSum/ovCnt):0;
+  const overallRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);cursor:pointer;" onclick="povShowPhaseTATDetail('__overall__')">
+    <td></td>
+    <td style="font-weight:700;"><i class="ti ti-timeline" style="color:#9b6dff;margin-right:6px;"></i>Overall TAT</td>
+    <td style="text-align:right;font-weight:700;"><span onclick="event.stopPropagation();povShowPhaseTATProjects('__overall__')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;font-weight:700;">${ovCnt}</span></td>
+    <td style="text-align:right;font-weight:700;color:#9b6dff;">${ovAvg}d</td>
+    <td style="text-align:right;font-weight:700;color:#34c98a;">${ovMin||0}d</td>
+    <td style="text-align:right;font-weight:700;color:#e74c3c;">${ovMax||0}d</td>
+  </tr>`;
+  host.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Avg TAT across ${rows.length} installation-completed project(s). Click a phase row for city/size breakdown, or click the count for project list.</div>
+  <div class="table-wrap"><table style="font-size:12px;width:100%;"><thead><tr><th style="width:34px;text-align:center;">#</th><th>Phase</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Avg TAT</th><th style="text-align:right;">Min</th><th style="text-align:right;">Max</th></tr></thead><tbody>${rowHtml}${overallRow}</tbody></table></div>`;
+}
+
+function povShowPhaseTATDetail(phaseKey){
+  const data=window._povPhaseTATData||[];if(!data.length)return;
+  const isOverall=phaseKey==='__overall__';
+  const label=isOverall?'Overall TAT':phaseKey;
+  const pick=p=>isOverall?p.tat.overall:p.tat.phases[phaseKey];
+  const items=data.map(p=>({p,t:pick(p)})).filter(x=>x.t);
+  if(!items.length)return;
+  const byCity={},bySize={};
+  items.forEach(({p,t})=>{
+    if(!byCity[p.city])byCity[p.city]={sum:0,count:0,items:[]};
+    byCity[p.city].sum+=t.days;byCity[p.city].count++;byCity[p.city].items.push({p,t});
+    if(!bySize[p.cat])bySize[p.cat]={sum:0,count:0,items:[]};
+    bySize[p.cat].sum+=t.days;bySize[p.cat].count++;bySize[p.cat].items.push({p,t});
+  });
+  const totalDays=items.reduce((s,x)=>s+x.t.days,0);
+  const avg=Math.round(totalDays/items.length);
+  const tbl=(data,lblCol,orderKeys,colors)=>{
+    const keys=orderKeys||Object.keys(data).sort((a,b)=>data[b].count-data[a].count);
+    const body=keys.filter(k=>data[k]).map(k=>{
+      const g=data[k];const a=Math.round(g.sum/g.count);
+      const sw=colors&&colors[k]?`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[k]};margin-right:6px;vertical-align:middle;"></span>`:'';
+      const esc=String(k).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      return `<tr onclick="povShowPhaseTATProjectsBy('${phaseKey.replace(/'/g,"\\'")}','${lblCol}','${esc}')" style="cursor:pointer;"><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:#4f8ef7;text-decoration:underline;">${g.count}</td><td style="text-align:right;font-weight:600;color:#f5a623;">${a}d</td></tr>`;
+    }).join('');
+    return `<div class="table-wrap" style="margin-bottom:14px;"><table style="font-size:12px;width:100%;"><thead><tr><th>${lblCol==='city'?'City':'Size'}</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Avg TAT</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  };
+  const sect=(icon,t,inner)=>`<div style="margin-top:10px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px;"><i class="ti ${icon}"></i>${t}</div>${inner}</div>`;
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:760px;max-height:92vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;">${pemrEsc(label)} — TAT Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${items.length} project(s) · avg ${avg}d · click a row for project list</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;">
+      ${sect('ti-building','By City',tbl(byCity,'city'))}
+      ${sect('ti-ruler-2','By Size Category',tbl(bySize,'size',SIZE_CATEGORIES,SIZE_CAT_COLORS))}
+    </div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+function povShowPhaseTATProjects(phaseKey){
+  const data=window._povPhaseTATData||[];if(!data.length)return;
+  const isOverall=phaseKey==='__overall__';
+  const label=isOverall?'Overall TAT':phaseKey;
+  const items=data.map(p=>({p,t:isOverall?p.tat.overall:p.tat.phases[phaseKey]})).filter(x=>x.t).sort((a,b)=>b.t.days-a.t.days);
+  povShowPhaseTATProjectList(label,items,()=>povShowPhaseTATDetail(phaseKey));
+}
+
+function povShowPhaseTATProjectsBy(phaseKey,dim,val){
+  const data=window._povPhaseTATData||[];if(!data.length)return;
+  const isOverall=phaseKey==='__overall__';
+  const label=(isOverall?'Overall TAT':phaseKey)+' · '+(dim==='city'?'City':'Size')+': '+val;
+  const items=data.filter(p=>dim==='city'?p.city===val:p.cat===val).map(p=>({p,t:isOverall?p.tat.overall:p.tat.phases[phaseKey]})).filter(x=>x.t).sort((a,b)=>b.t.days-a.t.days);
+  povShowPhaseTATProjectList(label,items,()=>povShowPhaseTATDetail(phaseKey));
+}
+
+function povShowPhaseTATProjectList(label,items,backFn){
+  window._povPhaseTATBack=backFn;
+  if(!items.length)return;
+  const cards=items.map(({p,t})=>{
+    const catColor=SIZE_CAT_COLORS[p.cat];
+    const pe=lv(p.row,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    return `<div class="pemr-card" style="border-left:3px solid #4f8ef7;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:13px;">${pemrEsc(p.name)}</span>
+        <span style="font-size:10px;color:var(--muted);">${pemrEsc(p.pid)}</span>
+        <span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;">${p.cat}</span>
+        <span style="margin-left:auto;font-size:11px;padding:3px 10px;background:rgba(245,166,35,0.15);color:#f5a623;border:1px solid rgba(245,166,35,0.3);border-radius:12px;font-weight:700;">${t.days}d</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        <div><span style="color:var(--muted);">City:</span> <b>${pemrEsc(p.city)}</b></div>
+        <div><span style="color:var(--muted);">PE:</span> ${pemrEsc(pe)}</div>
+        <div><span style="color:var(--muted);">Start:</span> <b>${fmtDate(t.start)}</b></div>
+        <div><span style="color:var(--muted);">End:</span> <b>${fmtDate(t.end)}</b></div>
+      </div>
+    </div>`;
+  }).join('');
+  const ov=document.getElementById('pemr-modal-ov');
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${backFn?`<button onclick="(window._povPhaseTATBack||function(){})()" title="Back" style="background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);cursor:pointer;padding:3px 8px;font-size:12px;"><i class="ti ti-arrow-left"></i></button>`:''}
+        <div><div style="font-size:15px;font-weight:600;">${pemrEsc(label)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${items.length} project(s) · sorted by TAT</div></div>
+      </div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
     </div>
     <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
