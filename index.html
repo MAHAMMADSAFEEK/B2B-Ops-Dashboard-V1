@@ -2220,20 +2220,22 @@ function buildRPT(){
   if(ftag){ftag.style.display=activeFilters?'inline':'none';if(activeFilters)ftag.textContent=`${activeFilters} filter${activeFilters>1?'s':''} active`;}
   const r=D.lead.r;
   const groups={};
-  let tProjects=0,tSize=0,tCompleted=0,tInProcess=0,tPending=0,tNotAssigned=0;
+  let tProjects=0,tSize=0,tCompleted=0,tInProcess=0,tPending=0,tNotAssigned=0,tInstallCompleted=0,tCompletedSize=0;
   r.forEach(x=>{
     if(!rptRowPasses(x))return;
     let g=lv(x,LEAD_COL[dim.col]);
     if(!g)g=(dim.key==='pe')?'— Not Assigned':'(Blank)';
-    if(!groups[g])groups[g]={count:0,size:0,completed:0,inProcess:0,pending:0,notAssigned:0};
+if(!groups[g])groups[g]={count:0,size:0,completed:0,inProcess:0,pending:0,notAssigned:0,installCompleted:0,completedSize:0};
     const size=povNum(lv(x,LEAD_COL.SIZE));
     const peAssigned=!!lv(x,LEAD_COL.PE);
     const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
     const G=groups[g];
     G.count++; G.size+=size; if(!peAssigned)G.notAssigned++;
-    if(m.status==='done')G.completed++; else if(m.status==='wip')G.inProcess++; else G.pending++;
+    if(m.status==='done'){G.completed++;G.completedSize+=size;} else if(m.status==='wip')G.inProcess++; else G.pending++;
+    if(m.installStatus==='done')G.installCompleted++;
     tProjects++; tSize+=size; if(!peAssigned)tNotAssigned++;
-    if(m.status==='done')tCompleted++; else if(m.status==='wip')tInProcess++; else tPending++;
+    if(m.status==='done'){tCompleted++;tCompletedSize+=size;} else if(m.status==='wip')tInProcess++; else tPending++;
+    if(m.installStatus==='done')tInstallCompleted++;
   });
   const metricsEl=document.getElementById('rpt-metrics');
   if(metricsEl)metricsEl.innerHTML=
@@ -2243,10 +2245,10 @@ function buildRPT(){
     metricWithBar('ti-loader','In Process',tInProcess,`${tProjects?Math.round(tInProcess/tProjects*100):0}% of projects`,'#f5a623',tProjects?tInProcess/tProjects*100:0,'#f5a623')+
     metricWithBar('ti-clock','Pending',tPending,`${tProjects?Math.round(tPending/tProjects*100):0}% of projects`,'#e74c3c',tProjects?tPending/tProjects*100:0,'#e74c3c')+
     metricWithBar('ti-user-off','Not Assigned',tNotAssigned,`${tProjects?Math.round(tNotAssigned/tProjects*100):0}% of projects`,'#e74c3c',tProjects?tNotAssigned/tProjects*100:0,'#e74c3c');
-  document.getElementById('rpt-head').innerHTML=`<tr><th>#</th><th>${dim.label}</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Size</th><th style="text-align:right;">Completed</th><th style="text-align:right;">In Process</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Not Assigned</th><th style="min-width:130px;">Completion %</th></tr>`;
+  document.getElementById('rpt-head').innerHTML=`<tr><th>#</th><th>${dim.label}</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Size</th><th style="text-align:right;">Installation Completed</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Completed Size</th><th style="text-align:right;">In Process</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Not Assigned</th><th style="min-width:130px;">Completion %</th></tr>`;
   const tbody=document.getElementById('rpt-body');
   const entries=Object.entries(groups).sort((a,b)=>b[1].count-a[1].count);
-  if(!entries.length){tbody.innerHTML='<tr><td colspan="9" class="empty">No data</td></tr>';return;}
+  if(!entries.length){tbody.innerHTML='<tr><td colspan="11" class="empty">No data</td></tr>';return;}
   tbody.innerHTML=entries.map(([g,G],i)=>{
     const pct=G.count?Math.round(G.completed/G.count*100):0;
     const col=pct>=75?'#34c98a':pct>=40?'#f5a623':'#e74c3c';
@@ -2256,25 +2258,30 @@ function buildRPT(){
     const nameCell=synthetic
       ? `<td style="font-size:13px;font-weight:500">${g}</td>`
       : `<td style="font-size:13px;font-weight:500;cursor:pointer;color:${active?'#4f8ef7':'var(--text)'}" onclick="rptDrill('${dim.key}','${g.replace(/'/g,"\\'")}')" title="Click to filter by ${g.replace(/"/g,'&quot;')}">${g} <i class="ti ti-filter" style="font-size:11px;opacity:0.55;"></i></td>`;
+const pctOf=(n)=>G.count?Math.round(n/G.count*100):0;
     return `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       ${nameCell}
       <td style="text-align:right;font-weight:600">${G.count}</td>
       <td style="text-align:right;color:var(--muted)">${Math.round(G.size).toLocaleString()}</td>
-      <td style="text-align:right;"><span class="badge bg">${G.completed}</span></td>
-      <td style="text-align:right;"><span class="badge bo">${G.inProcess}</span></td>
-      <td style="text-align:right;"><span class="badge br">${G.pending}</span></td>
-      <td style="text-align:right;color:#e74c3c;font-weight:500;">${G.notAssigned}</td>
+      <td style="text-align:right;"><span class="badge bg">${G.installCompleted} (${pctOf(G.installCompleted)}%)</span></td>
+      <td style="text-align:right;"><span class="badge bg">${G.completed} (${pctOf(G.completed)}%)</span></td>
+      <td style="text-align:right;color:var(--muted)">${Math.round(G.completedSize).toLocaleString()}</td>
+      <td style="text-align:right;"><span class="badge bo">${G.inProcess} (${pctOf(G.inProcess)}%)</span></td>
+      <td style="text-align:right;"><span class="badge br">${G.pending} (${pctOf(G.pending)}%)</span></td>
+      <td style="text-align:right;color:#e74c3c;font-weight:500;">${G.notAssigned} (${pctOf(G.notAssigned)}%)</td>
       <td>${bar}</td>
     </tr>`;
-  }).join('')+`<tr style="border-top:2px solid var(--border2);">
+}).join('')+`<tr style="border-top:2px solid var(--border2);">
     <td></td><td style="font-weight:700;">Total</td>
     <td style="text-align:right;font-weight:700;">${tProjects}</td>
     <td style="text-align:right;font-weight:700;">${Math.round(tSize).toLocaleString()}</td>
-    <td style="text-align:right;font-weight:700;color:#34c98a;">${tCompleted}</td>
-    <td style="text-align:right;font-weight:700;color:#f5a623;">${tInProcess}</td>
-    <td style="text-align:right;font-weight:700;color:#e74c3c;">${tPending}</td>
-    <td style="text-align:right;font-weight:700;color:#e74c3c;">${tNotAssigned}</td>
+    <td style="text-align:right;font-weight:700;color:#34c98a;">${tInstallCompleted} (${tProjects?Math.round(tInstallCompleted/tProjects*100):0}%)</td>
+    <td style="text-align:right;font-weight:700;color:#34c98a;">${tCompleted} (${tProjects?Math.round(tCompleted/tProjects*100):0}%)</td>
+    <td style="text-align:right;font-weight:700;">${Math.round(tCompletedSize).toLocaleString()}</td>
+    <td style="text-align:right;font-weight:700;color:#f5a623;">${tInProcess} (${tProjects?Math.round(tInProcess/tProjects*100):0}%)</td>
+    <td style="text-align:right;font-weight:700;color:#e74c3c;">${tPending} (${tProjects?Math.round(tPending/tProjects*100):0}%)</td>
+    <td style="text-align:right;font-weight:700;color:#e74c3c;">${tNotAssigned} (${tProjects?Math.round(tNotAssigned/tProjects*100):0}%)</td>
     <td style="font-weight:700;">${tProjects?Math.round(tCompleted/tProjects*100):0}%</td>
   </tr>`;
 }
