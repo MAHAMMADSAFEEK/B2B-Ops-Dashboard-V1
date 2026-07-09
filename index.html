@@ -1989,9 +1989,9 @@ if(m.status==='done')completed++;
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
   document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>Cluster Head</th><th>City Manager</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
+  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
   const tbody=document.getElementById('pov-body');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="19" class="empty">No projects match the selected filters</td></tr>';return;}
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="17" class="empty">No projects match the selected filters</td></tr>';return;}
   const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
   tbody.innerHTML=sortedRows.map((x,i)=>{
     const city=lv(x,LEAD_COL.CITY)||'—';
@@ -2024,11 +2024,9 @@ if(m.status==='done')completed++;
       <td><span class="badge bp">${projId}</span></td>
       <td style="font-weight:500;font-size:13px">${projName}</td>
       <td>${catCell}</td>
-<td style="font-size:12px">${cap}</td>
-      <td style="font-size:12px">${lv(x,LEAD_COL.CLUSTER)||'<span style="color:var(--muted);">—</span>'}</td>
-      <td style="font-size:12px">${lv(x,LEAD_COL.CITYMGR)||'<span style="color:var(--muted);">—</span>'}</td>
-      <td style="font-size:12px">${peVal?peVal:'<span style="color:#e74c3c;font-weight:500;">Not Assigned</span>'}</td>
-      
+      <td style="font-size:12px">${cap}</td>
+
+<td style="font-size:12px">${peVal?peVal:'<span style="color:#e74c3c;font-weight:500;">Not Assigned</span>'}</td>
       <td>${(()=>{const raw=lv(x,37);const d=parseDate(raw);return d?`<span onclick="showPOTimeline('${escId}')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;font-weight:500;font-size:12px;white-space:nowrap;" title="Click for PO timeline">${fmtDate(d)}</span>`:`<span style="color:var(--muted);font-size:11px;">—</span>`;})()}</td>
       <td style="font-size:11px;white-space:nowrap">${m.startDate?fmtDate(m.startDate):'—'}</td>
       <td style="font-size:11px;white-space:nowrap">${m.endDate?fmtDate(m.endDate):'—'}</td>
