@@ -4824,16 +4824,23 @@ function povShowProjCell(key){
   const items=((window._povProjMatrix||{})[city]||{})[mk]||[];
   const [y,m]=mk.split('-').map(Number);
   const ml=new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
-  const cards=items.map(it=>{
+const cards=items.map(it=>{
     const pe=lv(it.row,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
     const cat=sizeCategoryOf(it.row);
     const catColor=SIZE_CAT_COLORS[cat];
-    return `<div class="pemr-card" style="border-left:3px solid #0d9488;">
+    const d=povComputeDelay(it.row);
+    const isDelay=d&&d.delayBy>0;
+    const otBadge=isDelay
+      ? `<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(245,166,35,0.15);color:#f5a623;border:1px solid rgba(245,166,35,0.3);white-space:nowrap;">⚠ Delay ${d.delayBy}d</span>`
+      : `<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.3);white-space:nowrap;">✓ On time</span>`;
+    return `<div class="pemr-card" style="border-left:3px solid ${isDelay?'#f5a623':'#0d9488'};">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-weight:600;font-size:13px;">${pemrEsc(it.name)}</span>
         <span style="font-size:10px;color:var(--muted);">${pemrEsc(it.pid)}</span>
         <span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;margin-left:auto;">${cat}</span>
+        ${otBadge}
       </div>
+      
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
         <div><span style="color:var(--muted);">Install Start:</span> <b>${it.m.startDate?fmtDate(it.m.startDate):'—'}</b></div>
         <div><span style="color:var(--muted);">Project End:</span> <b style="color:#0d9488;">${fmtDate(it.m.endDate)}</b></div>
