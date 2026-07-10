@@ -350,8 +350,8 @@ tr:hover td{background:var(--surface2);}
       </div>
 
       <div class="card">
-        <div class="card-title"><i class="ti ti-report-analytics"></i> Project Update Report</div>
-        <div id="pov-delay-report"></div>
+        <div class="card-title"><i class="ti ti-filter-down"></i> Lead Funnel</div>
+        <div id="pov-funnel-chart"></div>
       </div>
     </div>
 
@@ -366,9 +366,15 @@ tr:hover td{background:var(--surface2);}
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title"><i class="ti ti-clock-exclamation"></i> Project Delay Aging Report</div>
-      <div id="pov-delay-aging"></div>
+<div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-report-analytics"></i> Project Update aging Report</div>
+        <div id="pov-delay-report"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clock-exclamation"></i> Project Delay Aging Report</div>
+        <div id="pov-delay-aging"></div>
+      </div>
     </div>
 
     <div class="charts-grid">
@@ -4291,9 +4297,39 @@ function povRenderExtraReports(){
   povRenderTopPE(rows);
   povRenderTopCity(rows);
   povRenderPhaseTAT(rows);
+  povRenderFunnel(rows);
 }
 
 
+  function povRenderFunnel(rows){
+  const host=document.getElementById('pov-funnel-chart');if(!host)return;
+  const total=rows.length;
+  if(!total){host.innerHTML='<div class="empty">No data</div>';return;}
+  let assigned=0,installDone=0,projDone=0;
+  rows.forEach(x=>{
+    if(lv(x,LEAD_COL.PE))assigned++;
+    const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+    if(m.installStatus==='done')installDone++;
+    if(m.status==='done')projDone++;
+  });
+  const stages=[
+    {label:'Total Leads',n:total,color:'#4f8ef7'},
+    {label:'Assigned Leads',n:assigned,color:'#9b6dff'},
+    {label:'Installation Completed',n:installDone,color:'#34c98a'},
+    {label:'Project Completed',n:projDone,color:'#0d9488'}
+  ];
+  host.innerHTML='<div style="display:flex;flex-direction:column;gap:8px;align-items:center;padding:6px 0;">'+
+    stages.map((s,i)=>{
+      const pct=total?Math.round(s.n/total*100):0;
+      const width=Math.max(pct,18); // keep readable
+      const conv=i>0&&stages[i-1].n?Math.round(s.n/stages[i-1].n*100):null;
+      return `<div style="width:${width}%;min-width:150px;background:${s.color}26;border:1px solid ${s.color}66;border-radius:8px;padding:8px 12px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:${s.color};">${s.n} <span style="font-size:10px;font-weight:500;color:var(--muted);">(${pct}%)</span></div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">${s.label}${conv!==null?` · ${conv}% of prev`:''}</div>
+      </div>`;
+    }).join('')+'</div>';
+}
+  
 // ── 1. INSTALLATION COMPLETED MATRIX (City × Month) ─────────────
 function povRenderInstMatrix(rows){
   const host=document.getElementById('pov-inst-matrix');if(!host)return;
