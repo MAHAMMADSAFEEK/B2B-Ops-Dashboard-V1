@@ -445,11 +445,18 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
         <label>City Manager</label>
         <div class="pov-ms rpt-ms" id="rpt-ms-citymgr"></div>
       </div>
+
       <div class="pe-filter-group">
         <label>PE</label>
         <div class="pov-ms rpt-ms" id="rpt-ms-pe"></div>
       </div>
+      <div class="pe-filter-group">
+        <label>Project Status</label>
+        <div class="pov-ms rpt-ms" id="rpt-ms-status"></div>
+      </div>
       <div class="pe-fdivider"></div>
+
+      
       <div class="pe-filter-actions">
         <span class="spacer"></span>
         <button class="pe-clr-btn" onclick="clearRPTFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button>
@@ -522,6 +529,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
       <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pmr-ms" id="pmr-ms-cluster"></div></div>
       <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pmr-ms" id="pmr-ms-citymgr"></div></div>
       <div class="pe-filter-group"><label>PE</label><div class="pov-ms pmr-ms" id="pmr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms pmr-ms" id="pmr-ms-status"></div></div>
       <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms pmr-ms" id="pmr-ms-pname"></div></div>
       <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms pmr-ms" id="pmr-ms-pid"></div></div>
       <div class="pe-fdivider"></div>
@@ -554,7 +562,8 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
       <div class="pe-filter-group"><label>City</label><div class="pov-ms pemr-ms" id="pemr-ms-city"></div></div>
       <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms pemr-ms" id="pemr-ms-cluster"></div></div>
       <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms pemr-ms" id="pemr-ms-citymgr"></div></div>
-      <div class="pe-filter-group"><label>PE</label><div class="pov-ms pemr-ms" id="pemr-ms-pe"></div></div>
+<div class="pe-filter-group"><label>PE</label><div class="pov-ms pemr-ms" id="pemr-ms-pe"></div></div>
+      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms pemr-ms" id="pemr-ms-status"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPEMRFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
     </div>
@@ -1680,7 +1689,7 @@ function clearPOVDelayBucket(){_povDelayBucket='';buildPOV();}
 function lv(row,i){return (i>=0 && row[i]!=null)?String(row[i]).trim():'';}
 function povNum(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
 
-const POV_STATUSES=['Not Assigned','Completed','In Process','Pending'];
+const POV_STATUSES=['Not Assigned','Installation On Going','Installation Completed But O&M pending','Project Closed'];
 const POV_MS_CFG={
   city:    {col:'CITY',    all:'All Cities',    ph:'Search cities…'},
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
@@ -1703,9 +1712,9 @@ function povProjectStatuses(x){
   const tags=[];
   if(!lv(x,LEAD_COL.PE))tags.push('Not Assigned');
   const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
-  if(m.status==='done')tags.push('Completed');
-  else if(m.status==='wip')tags.push('In Process');
-  else tags.push('Pending');
+  if(m.status==='done')tags.push('Project Closed');
+  else if(m.installStatus==='done')tags.push('Installation Completed But O&M pending');
+  else tags.push('Installation On Going');
   return tags;
 }
 
@@ -2142,11 +2151,12 @@ const RPT_MS_CFG={
   city:    {col:'CITY',    all:'All Cities',    ph:'Search cities…'},
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
-  pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'}
+  pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
+  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES}
 };
-let _rptMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
-let _rptMSAll={city:[],cluster:[],citymgr:[],pe:[]};
-let _rptMSCounts={city:{},cluster:{},citymgr:{},pe:{}};
+let _rptMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set()};
+let _rptMSAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice()};
+let _rptMSCounts={city:{},cluster:{},citymgr:{},pe:{},status:{}};
 
 function populateRPTFilters(){
   const r=D.lead.r;
@@ -2158,10 +2168,12 @@ function populateRPTFilters(){
     const cm=lv(x,LEAD_COL.CITYMGR); if(cm)sets.citymgr.add(cm);
     const pe=lv(x,LEAD_COL.PE); if(pe)sets.pe.add(pe);
   });
-  Object.keys(sets).forEach(k=>{
+Object.keys(sets).forEach(k=>{
     _rptMSAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));
     _rptMS[k]=new Set([..._rptMS[k]].filter(v=>sets[k].has(v)));
   });
+  _rptMSAll.status=POV_STATUSES.slice();
+  _rptMS.status=new Set([..._rptMS.status].filter(v=>POV_STATUSES.includes(v)));
   Object.keys(RPT_MS_CFG).forEach(buildRPTMSWidget);
   recomputeRPTOptions();
 }
@@ -2219,25 +2231,34 @@ function rptRowPasses(x){
   if(_rptMS.cluster.size&&!_rptMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(_rptMS.citymgr.size&&!_rptMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
   if(_rptMS.pe.size&&!_rptMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(_rptMS.status.size&&!povProjectStatuses(x).some(t=>_rptMS.status.has(t)))return false;
   return true;
 }
+  
 function rptRowPassesExcept(x,exceptKey){
   if(!lv(x,LEAD_COL.PID))return false;
   if(exceptKey!=='city'    && _rptMS.city.size    && !_rptMS.city.has(lv(x,LEAD_COL.CITY)))return false;
   if(exceptKey!=='cluster' && _rptMS.cluster.size && !_rptMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _rptMS.citymgr.size && !_rptMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
-  if(exceptKey!=='pe'      && _rptMS.pe.size      && !_rptMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+ if(exceptKey!=='pe'      && _rptMS.pe.size      && !_rptMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(exceptKey!=='status'  && _rptMS.status.size  && !povProjectStatuses(x).some(t=>_rptMS.status.has(t)))return false;
   return true;
 }
 
 function recomputeRPTOptions(){
   const r=D.lead.r;
-  Object.keys(RPT_MS_CFG).forEach(key=>{
-    const counts={}; const colIdx=LEAD_COL[RPT_MS_CFG[key].col];
-    r.forEach(x=>{ if(rptRowPassesExcept(x,key)){ const val=lv(x,colIdx); if(val)counts[val]=(counts[val]||0)+1; } });
-    const set=new Set(Object.keys(counts));
-    _rptMS[key].forEach(v=>set.add(v));
-    _rptMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));
+Object.keys(RPT_MS_CFG).forEach(key=>{
+    const counts={};
+    if(key==='status'){
+      r.forEach(x=>{ if(rptRowPassesExcept(x,key)){ povProjectStatuses(x).forEach(t=>counts[t]=(counts[t]||0)+1); } });
+      _rptMSAll[key]=POV_STATUSES.slice();
+    } else {
+      const colIdx=LEAD_COL[RPT_MS_CFG[key].col];
+      r.forEach(x=>{ if(rptRowPassesExcept(x,key)){ const val=lv(x,colIdx); if(val)counts[val]=(counts[val]||0)+1; } });
+      const set=new Set(Object.keys(counts));
+      _rptMS[key].forEach(v=>set.add(v));
+      _rptMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));
+    }
     _rptMSCounts[key]=counts;
     renderRPTMSOptions(key);
   });
@@ -2372,12 +2393,13 @@ const PMR_MS_CFG={
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
   citymgr: {col:'CITYMGR', all:'All City Mgrs', ph:'Search city managers…'},
   pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
+  status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES},
   pname:   {col:'PNAME',   all:'All Projects',   ph:'Search project name…'},
   pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'}
 };
-let _pmrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pname:new Set(),pid:new Set()};
-let _pmrMSAll={city:[],cluster:[],citymgr:[],pe:[],pname:[],pid:[]};
-let _pmrMSCounts={city:{},cluster:{},citymgr:{},pe:{},pname:{},pid:{}};
+let _pmrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set(),pname:new Set(),pid:new Set()};
+let _pmrMSAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice(),pname:[],pid:[]};
+let _pmrMSCounts={city:{},cluster:{},citymgr:{},pe:{},status:{},pname:{},pid:{}};
 
 function populatePMRFilters(){
   // Month options from attendance dates
@@ -2402,6 +2424,8 @@ const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pnam
     const pn=lv(x,LEAD_COL.PNAME);if(pn)sets.pname.add(pn);
     sets.pid.add(pid);});
   Object.keys(sets).forEach(k=>{_pmrMSAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));_pmrMS[k]=new Set([..._pmrMS[k]].filter(v=>sets[k].has(v)));});
+  _pmrMSAll.status=POV_STATUSES.slice();
+  _pmrMS.status=new Set([..._pmrMS.status].filter(v=>POV_STATUSES.includes(v)));
   Object.keys(PMR_MS_CFG).forEach(buildPMRMSWidget);
   recomputePMROptions();
 }
@@ -2444,6 +2468,7 @@ function pmrRowPassesExcept(x,exceptKey){
   if(exceptKey!=='cluster' && _pmrMS.cluster.size && !_pmrMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _pmrMS.citymgr.size && !_pmrMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
 if(exceptKey!=='pe'      && _pmrMS.pe.size      && !_pmrMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(exceptKey!=='status'  && _pmrMS.status.size  && !povProjectStatuses(x).some(t=>_pmrMS.status.has(t)))return false;
   if(exceptKey!=='pname'   && _pmrMS.pname.size   && !_pmrMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
   if(exceptKey!=='pid'     && _pmrMS.pid.size     && !_pmrMS.pid.has(lv(x,LEAD_COL.PID)))return false;
   return true;
@@ -2451,10 +2476,17 @@ if(exceptKey!=='pe'      && _pmrMS.pe.size      && !_pmrMS.pe.has(lv(x,LEAD_COL.
 function recomputePMROptions(){
   const r=D.lead.r;
   Object.keys(PMR_MS_CFG).forEach(key=>{
-    const counts={};const colIdx=LEAD_COL[PMR_MS_CFG[key].col];
-    r.forEach(x=>{if(pmrRowPassesExcept(x,key)){const val=lv(x,colIdx);if(val)counts[val]=(counts[val]||0)+1;}});
-    const set=new Set(Object.keys(counts));_pmrMS[key].forEach(v=>set.add(v));
-    _pmrMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));_pmrMSCounts[key]=counts;renderPMRMSOptions(key);
+    const counts={};
+    if(key==='status'){
+      r.forEach(x=>{if(pmrRowPassesExcept(x,key)){povProjectStatuses(x).forEach(t=>counts[t]=(counts[t]||0)+1);}});
+      _pmrMSAll[key]=POV_STATUSES.slice();
+    } else {
+      const colIdx=LEAD_COL[PMR_MS_CFG[key].col];
+      r.forEach(x=>{if(pmrRowPassesExcept(x,key)){const val=lv(x,colIdx);if(val)counts[val]=(counts[val]||0)+1;}});
+      const set=new Set(Object.keys(counts));_pmrMS[key].forEach(v=>set.add(v));
+      _pmrMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));
+    }
+    _pmrMSCounts[key]=counts;renderPMRMSOptions(key);
   });
 }
 function selectAllPMRMS(key){const q=((document.getElementById('pmr-ms-search-'+key)||{}).value||'').trim().toLowerCase();_pmrMSAll[key].filter(o=>!q||o.toLowerCase().includes(q)).forEach(o=>_pmrMS[key].add(o));updatePMRMSControl(key);recomputePMROptions();buildPMR();}
@@ -2644,7 +2676,8 @@ const projRows=D.lead.r.filter(x=>{
     if(fCity.size&&!fCity.has(lv(x,LEAD_COL.CITY)))return false;
     if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
     if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
-    if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
+if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
+    if(_pmrMS.status.size&&!povProjectStatuses(x).some(t=>_pmrMS.status.has(t)))return false;
     if(_pmrMS.pname.size&&!_pmrMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
     if(_pmrMS.pid.size&&!_pmrMS.pid.has(pid))return false;
     return true;
@@ -2714,11 +2747,12 @@ const PEMR_MS_CFG={
   city:{col:'CITY',all:'All Cities',ph:'Search cities…'},
   cluster:{col:'CLUSTER',all:'All Clusters',ph:'Search clusters…'},
   citymgr:{col:'CITYMGR',all:'All City Mgrs',ph:'Search city managers…'},
-  pe:{col:'PE',all:'All PEs',ph:'Search PEs…'}
+pe:{col:'PE',all:'All PEs',ph:'Search PEs…'},
+  status:{col:null,all:'All Statuses',ph:'Search status…',fixed:POV_STATUSES}
 };
-let _pemrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
-let _pemrMSAll={city:[],cluster:[],citymgr:[],pe:[]};
-let _pemrMSCounts={city:{},cluster:{},citymgr:{},pe:{}};
+let _pemrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set()};
+let _pemrMSAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice()};
+let _pemrMSCounts={city:{},cluster:{},citymgr:{},pe:{},status:{}};
 
 function populatePEMRFilters(){
   const months={};
@@ -2735,6 +2769,8 @@ function populatePEMRFilters(){
     const cm=lv(x,LEAD_COL.CITYMGR);if(cm)sets.citymgr.add(cm);
     const pe=lv(x,LEAD_COL.PE);if(pe)sets.pe.add(pe);});
   Object.keys(sets).forEach(k=>{_pemrMSAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));_pemrMS[k]=new Set([..._pemrMS[k]].filter(v=>sets[k].has(v)));});
+  _pemrMSAll.status=POV_STATUSES.slice();
+  _pemrMS.status=new Set([..._pemrMS.status].filter(v=>POV_STATUSES.includes(v)));
   Object.keys(PEMR_MS_CFG).forEach(buildPEMRMSWidget);
   recomputePEMROptions();
 }
@@ -2766,15 +2802,23 @@ function pemrRowPassesExcept(x,exceptKey){
   if(exceptKey!=='cluster' && _pemrMS.cluster.size && !_pemrMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
   if(exceptKey!=='citymgr' && _pemrMS.citymgr.size && !_pemrMS.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
   if(exceptKey!=='pe'      && _pemrMS.pe.size      && !_pemrMS.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(exceptKey!=='status'  && _pemrMS.status.size  && !povProjectStatuses(x).some(t=>_pemrMS.status.has(t)))return false;
   return true;
 }
 function recomputePEMROptions(){
   const r=D.lead.r;
   Object.keys(PEMR_MS_CFG).forEach(key=>{
-    const counts={};const colIdx=LEAD_COL[PEMR_MS_CFG[key].col];
-    r.forEach(x=>{if(pemrRowPassesExcept(x,key)){const val=lv(x,colIdx);if(val)counts[val]=(counts[val]||0)+1;}});
-    const set=new Set(Object.keys(counts));_pemrMS[key].forEach(v=>set.add(v));
-    _pemrMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));_pemrMSCounts[key]=counts;renderPEMRMSOptions(key);
+    const counts={};
+    if(key==='status'){
+      r.forEach(x=>{if(pemrRowPassesExcept(x,key)){povProjectStatuses(x).forEach(t=>counts[t]=(counts[t]||0)+1);}});
+      _pemrMSAll[key]=POV_STATUSES.slice();
+    } else {
+      const colIdx=LEAD_COL[PEMR_MS_CFG[key].col];
+      r.forEach(x=>{if(pemrRowPassesExcept(x,key)){const val=lv(x,colIdx);if(val)counts[val]=(counts[val]||0)+1;}});
+      const set=new Set(Object.keys(counts));_pemrMS[key].forEach(v=>set.add(v));
+      _pemrMSAll[key]=[...set].sort((a,b)=>a.localeCompare(b));
+    }
+    _pemrMSCounts[key]=counts;renderPEMRMSOptions(key);
   });
 }
 function selectAllPEMRMS(key){const q=((document.getElementById('pemr-ms-search-'+key)||{}).value||'').trim().toLowerCase();_pemrMSAll[key].filter(o=>!q||o.toLowerCase().includes(q)).forEach(o=>_pemrMS[key].add(o));updatePEMRMSControl(key);recomputePEMROptions();buildPEMR();}
@@ -3267,6 +3311,7 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
     if(fCity.size&&!fCity.has(lv(x,LEAD_COL.CITY)))return;
     if(fCluster.size&&!fCluster.has(lv(x,LEAD_COL.CLUSTER)))return;
     if(fCityMgr.size&&!fCityMgr.has(lv(x,LEAD_COL.CITYMGR)))return;
+    if(_pemrMS.status.size&&!povProjectStatuses(x).some(t=>_pemrMS.status.has(t)))return;
     (peProjects[pe]=peProjects[pe]||[]).push(pid);
   });
 
