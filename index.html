@@ -1926,10 +1926,14 @@ function povDelayReport({upNever,upOk,up7,up15,up30,totalProjects}){
   if(!totalProjects&&!_povDelayBucket)return'<div class="empty">No data</div>';
   const delayed=up7+up15+up30;
   const active=_povDelayBucket;
-  const line=(key,color,icon,text,count)=>{const isActive=active===key;const dim=active&&!isActive?'opacity:.45;':'';return `<tr onclick="setPOVDelayBucket('${key}')" style="cursor:pointer;${isActive?`background:${color}1a;`:''}${dim}">
+const line=(key,color,icon,text,count)=>{const isActive=active===key;const dim=active&&!isActive?'opacity:.45;':'';
+    const pct=totalProjects?Math.round(count/totalProjects*100):0;
+    return `<tr onclick="setPOVDelayBucket('${key}')" style="cursor:pointer;${isActive?`background:${color}1a;`:''}${dim}">
     <td style="width:1%;padding:6px 4px;"><i class="ti ${icon}" style="color:${color};font-size:15px;"></i></td>
     <td style="font-size:12px;padding:6px 4px;${isActive?`color:${color};font-weight:600;`:''}">${text}${isActive?' <i class="ti ti-filter-check" style="margin-left:4px;font-size:11px;"></i>':''}</td>
     <td style="text-align:right;font-size:13px;font-weight:600;color:${color};white-space:nowrap;padding:6px 4px;">${count}</td>
+    <td style="text-align:right;font-size:11px;color:var(--muted);white-space:nowrap;padding:6px 4px;">${pct}%</td>
+    <td style="min-width:110px;padding:6px 4px;"><div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div></td>
   </tr>`;};
   const banner=active
     ? `<div style="margin-bottom:12px;padding:10px 12px;background:rgba(79,142,247,0.12);border:1px solid rgba(79,142,247,0.35);border-radius:8px;font-size:12px;color:var(--text);display:flex;justify-content:space-between;align-items:center;gap:8px;"><div><i class="ti ti-filter" style="margin-right:6px;color:var(--accent);"></i>Filtering tab by update bucket. Click again or use <strong>Clear</strong> to reset.</div><button onclick="clearPOVDelayBucket()" style="background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;">Clear</button></div>`
