@@ -222,6 +222,10 @@ tr:hover td{background:var(--surface2);}
 
 
  @keyframes pmrBlueBlink{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,0.6);}50%{box-shadow:0 0 0 3px rgba(79,142,247,0.35);}}
+@keyframes pmrRowDelayBlink{0%,100%{background:rgba(231,76,60,0.05);}50%{background:rgba(231,76,60,0.18);}}
+tr.pmr-row-delay td{animation:pmrRowDelayBlink 1.6s ease-in-out infinite;}
+tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
+  
 .pmr-install{animation:pmrBlueBlink 1.4s ease-in-out infinite;border:1px solid rgba(79,142,247,0.55) !important;position:relative;}
 .pmr-install::before{content:'*';position:absolute;top:-2px;right:4px;color:#4f8ef7;font-weight:900;font-size:14px;text-shadow:0 0 4px rgba(79,142,247,0.6);}
 
@@ -2648,9 +2652,12 @@ const projRows=D.lead.r.filter(x=>{
       }
       return `<td><div class="pmr-cell ${c.cls}${inInstall?' pmr-install':''}" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;" ${inInstall?'title="Installation period"':''}>${labelHtml}${c.sub?`<span class="pmr-sub">${c.sub}</span>`:''}${c.tags||''}</div></td>`;
     }).join('');
-    return `<tr>
+const _dl=povComputeDelay(x);
+    const isDelayedRow=_dl&&_dl.delayBy>0&&!_dl.isDone;
+    const delayTag=isDelayedRow?`<div style="font-size:9px;color:#e74c3c;font-weight:700;margin-top:2px;">⚠ ${_dl.delayBy}d delayed</div>`:'';
+    return `<tr${isDelayedRow?' class="pmr-row-delay"':''}>
       <td class="pmr-c0" style="font-size:11px;">${city}</td>
-      <td class="pmr-c1" title="${pname.replace(/"/g,'&quot;')}">${pname}<div style="font-size:9px;color:var(--muted);font-weight:400;">${pid}</div></td>
+      <td class="pmr-c1" title="${pname.replace(/"/g,'&quot;')}">${pname}<div style="font-size:9px;color:var(--muted);font-weight:400;">${pid}</div>${delayTag}</td>
       <td class="pmr-c2">${size}</td>
       <td class="pmr-c3" style="font-size:11px;">${pe}</td>
       ${cells}
