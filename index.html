@@ -1431,24 +1431,34 @@ let completedPctSum=0;
   const lastDPREntry=dprSorted.length?dprSorted[0]:null;
   const lastWorkPlan=lastDPREntry?v(lastDPREntry,D_PLAN):'—';
   const lastDPRDate=lastDPREntry?parseDate(v(lastDPREntry,D_TS)):null;
+// Installation TAT (Structure Shifting → Pre-Commissioning; today if not completed)
+  const pm=computeProjectMetrics(projId);
+  const instDone=pm.installStatus==='done';
+  const instTat=pm.tat;
+  // Project TAT per PO (Lead Tracker col AL start, col Y days)
+  const leadRow=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===projId);
+  const poStart=leadRow?parseDate(lv(leadRow,37)):null;
+  const poDays=leadRow?(parseFloat(lv(leadRow,24))||0):0;
+  const poExpected=(poStart&&poDays)?new Date(poStart.getTime()+poDays*86400000):null;
+  const projEndRef=(pm.status==='done'&&lastDPRDate)?lastDPRDate:today;
+  const poProjTAT=poStart?Math.ceil((projEndRef-poStart)/86400000)+1:null;
+  const poDelay=(poProjTAT!==null&&poDays>0&&poProjTAT>poDays)?poProjTAT-poDays:0;
+  const rowHtml=(icon,iconColor,label,valHtml,extraStyle)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg2);border-radius:8px;${extraStyle||''}">
+        <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ${icon}" style="font-size:13px;color:${iconColor};"></i>${label}</span>
+        ${valHtml}
+      </div>`;
   const tatCard=`<div class="metric" style="--mc:#4f8ef7;grid-column:span 2;min-width:280px;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
       <i class="ti ti-calendar-stats" style="font-size:16px;color:#4f8ef7;"></i>
       <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:500;">Project Timeline</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg2);border-radius:8px;">
-        <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ti-calendar-event" style="font-size:13px;color:#34c98a;"></i>Start Date</span>
-        <span style="font-size:13px;font-weight:600;color:#34c98a;">${projStartDate?fmtDate(projStartDate):'—'}</span>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg2);border-radius:8px;">
-        <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ti-calendar-check" style="font-size:13px;color:#f5a623;"></i>End Date</span>
-        <span style="font-size:13px;font-weight:600;color:#f5a623;">${projEndDate?fmtDate(projEndDate):'—'}</span>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg2);border-radius:8px;">
-        <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ti-clock-hour-4" style="font-size:13px;color:#34c98a;"></i>TAT (Today − Start)</span>
-        <span style="font-size:13px;font-weight:700;color:#34c98a;">${projTAT!==null?projTAT+' days':'—'}</span>
-      </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${rowHtml('ti-calendar-event','#34c98a','Installation Start',`<span style="font-size:13px;font-weight:600;color:#34c98a;">${pm.startDate?fmtDate(pm.startDate):'—'}</span>`)}
+      ${rowHtml('ti-calendar-check','#f5a623','Installation End',`<span style="font-size:13px;font-weight:600;color:#f5a623;">${pm.endDate?fmtDate(pm.endDate):'—'}</span>`)}
+      ${rowHtml('ti-clock-hour-4','#34c98a',`Installation TAT ${instDone?'(completed)':'(running)'}`,`<span style="font-size:13px;font-weight:700;color:${instDone?'#34c98a':'#f5a623'};">${instTat!==null?instTat+' days':'—'}</span>`)}
+      ${rowHtml('ti-file-invoice','#4f8ef7','PO Start (col AL)',`<span style="font-size:13px;font-weight:600;color:#4f8ef7;">${poStart?fmtDate(poStart):'—'}</span>`)}
+      ${rowHtml('ti-calendar-due','#9b6dff','Expected Install Date (per PO)',`<span style="font-size:13px;font-weight:600;color:#9b6dff;">${poExpected?fmtDate(poExpected):'—'}</span>`)}
+      ${rowHtml('ti-clock-play',poDelay?'#e74c3c':'#34c98a',`Project TAT ${pm.status==='done'?'(completed)':'(running)'}`,`<span style="font-size:13px;font-weight:700;color:${poDelay?'#e74c3c':'#34c98a'};">${poProjTAT!==null?poProjTAT+' days':'—'}${poDelay?` <span style="font-size:10px;font-weight:700;color:#e74c3c;">(⚠ ${poDelay}d over PO)</span>`:''}</span>`,poDelay?'border:1px solid rgba(231,76,60,0.35);':'')}
     </div>
   </div>`;
   const pendingFromDays=lastDPRDate?Math.ceil((today-lastDPRDate)/(1000*60*60*24)):null;
