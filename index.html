@@ -4365,34 +4365,82 @@ function povRenderDelayInsights(rows){
 }
 
 
-  function povRenderFunnel(rows){
+const POV_FUNNEL_STAGES=[
+  {key:'total',   label:'Total Leads',            color:'#4f8ef7', test:x=>true},
+  {key:'assigned',label:'Assigned Leads',         color:'#9b6dff', test:x=>!!lv(x,LEAD_COL.PE)},
+  {key:'install', label:'Installation Completed', color:'#34c98a', test:x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).installStatus==='done'},
+  {key:'project', label:'Project Completed',      color:'#0d9488', test:x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done'}
+];
+
+function povRenderFunnel(rows){
   const host=document.getElementById('pov-funnel-chart');if(!host)return;
   const total=rows.length;
   if(!total){host.innerHTML='<div class="empty">No data</div>';return;}
-  let assigned=0,installDone=0,projDone=0;
-  rows.forEach(x=>{
-    if(lv(x,LEAD_COL.PE))assigned++;
-    const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
-    if(m.installStatus==='done')installDone++;
-    if(m.status==='done')projDone++;
-  });
-  const stages=[
-    {label:'Total Leads',n:total,color:'#4f8ef7'},
-    {label:'Assigned Leads',n:assigned,color:'#9b6dff'},
-    {label:'Installation Completed',n:installDone,color:'#34c98a'},
-    {label:'Project Completed',n:projDone,color:'#0d9488'}
-  ];
+  window._povFunnelRows=rows;
+  const counts=POV_FUNNEL_STAGES.map(s=>rows.filter(s.test).length);
   host.innerHTML='<div style="display:flex;flex-direction:column;gap:8px;align-items:center;padding:6px 0;">'+
-    stages.map((s,i)=>{
-      const pct=total?Math.round(s.n/total*100):0;
-      const width=Math.max(pct,18); // keep readable
-      const conv=i>0&&stages[i-1].n?Math.round(s.n/stages[i-1].n*100):null;
-      return `<div style="width:${width}%;min-width:150px;background:${s.color}26;border:1px solid ${s.color}66;border-radius:8px;padding:8px 12px;text-align:center;">
-        <div style="font-size:16px;font-weight:700;color:${s.color};">${s.n} <span style="font-size:10px;font-weight:500;color:var(--muted);">(${pct}%)</span></div>
+    POV_FUNNEL_STAGES.map((s,i)=>{
+      const n=counts[i];
+      const pct=total?Math.round(n/total*100):0;
+      const width=Math.max(pct,18);
+      const conv=i>0&&counts[i-1]?Math.round(n/counts[i-1]*100):null;
+      return `<div onclick="povShowFunnelDetail('${s.key}')" title="Click for breakdown" style="cursor:pointer;width:${width}%;min-width:150px;background:${s.color}26;border:1px solid ${s.color}66;border-radius:8px;padding:8px 12px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;color:${s.color};">${n} <span style="font-size:10px;font-weight:500;color:var(--muted);">(${pct}%)</span></div>
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">${s.label}${conv!==null?` · ${conv}% of prev`:''}</div>
       </div>`;
-    }).join('')+'</div>';
+    }).join('')+'</div><div style="text-align:center;font-size:11px;color:var(--muted);margin-top:6px;">Click a stage for City / Size / Month breakdown</div>';
 }
+
+function povShowFunnelDetail(stageKey){
+  const rowsAll=window._povFunnelRows||[];
+  const stage=POV_FUNNEL_STAGES.find(s=>s.key===stageKey);if(!stage)return;
+  const rows=rowsAll.filter(stage.test);
+  if(!rows.length)return;
+  const total=rows.length;
+  const byCity={},bySize={},byMonth={};
+  rows.forEach(x=>{
+    const c=lv(x,LEAD_COL.CITY)||'Unknown';
+    byCity[c]=(byCity[c]||0)+1;
+    const cat=sizeCategoryOf(x);
+    bySize[cat]=(bySize[cat]||0)+1;
+    const po=parseDate(lv(x,37));
+    const mk=po?po.getFullYear()+'-'+String(po.getMonth()+1).padStart(2,'0'):'(No PO date)';
+    const ml=po?po.toLocaleDateString('en-IN',{month:'short',year:'numeric'}):'(No PO date)';
+    if(!byMonth[mk])byMonth[mk]={label:ml,n:0};
+    byMonth[mk].n++;
+  });
+  const tbl=(entries,lbl,colors)=>{
+    if(!entries.length)return '<div class="empty" style="padding:14px;">No data</div>';
+    return `<div class="table-wrap"><table style="font-size:12px;width:100%;">
+      <thead><tr><th>${lbl}</th><th style="text-align:right;">Projects</th><th style="text-align:right;">%</th><th style="min-width:100px;">Dist</th></tr></thead>
+      <tbody>${entries.map(([k,n])=>{
+        const pct=Math.round(n/total*100);
+        const sw=colors&&colors[k]?`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[k]};margin-right:6px;vertical-align:middle;"></span>`:'';
+        return `<tr><td>${sw}${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:${stage.color};">${n}</td><td style="text-align:right;color:var(--muted);">${pct}%</td><td><div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${stage.color};"></div></div></td></tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  };
+  const cityEntries=Object.entries(byCity).sort((a,b)=>b[1]-a[1]);
+  const sizeEntries=SIZE_CATEGORIES.map(c=>[c,bySize[c]||0]).filter(([,n])=>n);
+  const monthEntries=Object.keys(byMonth).sort().map(mk=>[byMonth[mk].label,byMonth[mk].n]);
+  const sect=(icon,t,inner)=>`<div style="margin-top:12px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px;"><i class="ti ${icon}"></i>${t}</div>${inner}</div>`;
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:820px;max-height:92vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;">${pemrEsc(stage.label)} — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${total} project(s)</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;">
+      ${sect('ti-building','By City',tbl(cityEntries,'City'))}
+      ${sect('ti-ruler-2','By Size Category',tbl(sizeEntries,'Size',SIZE_CAT_COLORS))}
+      ${sect('ti-calendar','By Month (PO date · col AL)',tbl(monthEntries,'Month'))}
+    </div>
+  </div>`;
+  ov.style.display='flex';
+}
+  
+  
   
 // ── 1. INSTALLATION COMPLETED MATRIX (City × Month) ─────────────
 function povRenderInstMatrix(rows){
