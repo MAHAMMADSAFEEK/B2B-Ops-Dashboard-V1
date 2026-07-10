@@ -4538,34 +4538,45 @@ function povRenderInstMatrix(rows){
     matrix[city][mk].push({pid:lv(x,LEAD_COL.PID),name:lv(x,LEAD_COL.PNAME),row:x,m});
   });
   // Keep only current month + last 5 months (6 total)
+
+  // Keep current month + last 5 months as columns; aggregate older months into "Earlier"
   const today=new Date();
   const cutoff=new Date(today.getFullYear(),today.getMonth()-5,1);
   const cutoffKey=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0');
   const monthKeys=[...months.keys()].filter(k=>k>=cutoffKey).sort();
+  const earlierKeys=[...months.keys()].filter(k=>k<cutoffKey);
   const cityList=[...cities].sort();
-  const rowTotals={},colTotals={};let grand=0;
-  cityList.forEach(c=>{rowTotals[c]=0;monthKeys.forEach(mk=>{const n=(matrix[c][mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
+  // Merge earlier months into an "__earlier__" bucket per city
+  cityList.forEach(c=>{
+    const early=[];earlierKeys.forEach(mk=>{(matrix[c][mk]||[]).forEach(it=>early.push(it));});
+    if(early.length)matrix[c].__earlier__=early;
+  });
+  const rowTotals={},colTotals={};let grand=0,earlierTotal=0;
+  cityList.forEach(c=>{rowTotals[c]=0;
+    const en=(matrix[c].__earlier__||[]).length;rowTotals[c]+=en;earlierTotal+=en;grand+=en;
+    monthKeys.forEach(mk=>{const n=(matrix[c][mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
+  const cellHtml=(c,mk,items)=>{
+    if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
+    const esc=(c+'|'+mk).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<td style="text-align:center;"><span onclick="povShowInstCell('${esc}')" style="cursor:pointer;display:inline-block;min-width:32px;padding:3px 10px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.3);border-radius:12px;font-weight:600;font-size:12px;">${items.length}</span></td>`;
+  };
   const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
-    const cells=monthKeys.map(mk=>{
-      const items=matrix[c][mk]||[];
-      if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
-      const esc=(c+'|'+mk).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      return `<td style="text-align:center;"><span onclick="povShowInstCell('${esc}')" style="cursor:pointer;display:inline-block;min-width:32px;padding:3px 10px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.3);border-radius:12px;font-weight:600;font-size:12px;">${items.length}</span></td>`;
-    }).join('');
-    return `<tr><td style="font-weight:500;">${pemrEsc(c)}</td>${cells}<td style="text-align:right;font-weight:700;color:#34c98a;">${rowTotals[c]}</td></tr>`;
+    const earlierCell=cellHtml(c,'__earlier__',matrix[c].__earlier__||[]);
+    const cells=monthKeys.map(mk=>cellHtml(c,mk,matrix[c][mk]||[])).join('');
+    return `<tr><td style="font-weight:500;">${pemrEsc(c)}</td>${earlierCell}${cells}<td style="text-align:right;font-weight:700;color:#34c98a;">${rowTotals[c]}</td></tr>`;
   }).join('');
-  const totalRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);"><td style="font-weight:700;">Total</td>${monthKeys.map(mk=>`<td style="text-align:center;font-weight:700;color:#34c98a;">${colTotals[mk]}</td>`).join('')}<td style="text-align:right;font-weight:700;color:#34c98a;">${grand}</td></tr>`;
-  // stash for popup
+  const totalRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);"><td style="font-weight:700;">Total</td><td style="text-align:center;font-weight:700;color:#34c98a;">${earlierTotal||'—'}</td>${monthKeys.map(mk=>`<td style="text-align:center;font-weight:700;color:#34c98a;">${colTotals[mk]||'—'}</td>`).join('')}<td style="text-align:right;font-weight:700;color:#34c98a;">${grand}</td></tr>`;
+
+  
   window._povInstMatrix=matrix;
   const detailBtn=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-size:12px;color:var(--muted);">${grand} projects installed · ${cityList.length} cities · ${monthKeys.length} months. Click a cell for project list.</div><button class="pe-clr-btn" onclick="povShowInstSummary()"><i class="ti ti-list-details" style="font-size:12px;"></i> Detailed Summary</button></div>`;
-  host.innerHTML=detailBtn+`<div class="table-wrap" style="max-height:400px;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>City</th>${monthKeys.map(mk=>`<th style="text-align:center;">${months.get(mk)}</th>`).join('')}<th style="text-align:right;">Total</th></tr></thead><tbody>${cityRows}${totalRow}</tbody></table></div>`;
+  host.innerHTML=detailBtn+`<div class="table-wrap" style="max-height:400px;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>City</th><th style="text-align:center;">Earlier</th>${monthKeys.map(mk=>`<th style="text-align:center;">${months.get(mk)}</th>`).join('')}<th style="text-align:right;">Total</th></tr></thead><tbody>${cityRows}${totalRow}</tbody></table></div>`;
 }
 
 function povShowInstCell(key){
   const [city,mk]=key.split('|');
   const items=(window._povInstMatrix[city]||{})[mk]||[];
-  const [y,m]=mk.split('-').map(Number);
-  const ml=new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const ml=mk==='__earlier__'?'Earlier months':(()=>{const [y,m]=mk.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});})();
   const cards=items.map((it,i)=>{
     const pe=lv(it.row,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
     const cm=lv(it.row,LEAD_COL.CITYMGR)||'—';
@@ -5008,10 +5019,9 @@ function povShowDelayedByDim(dim,val){
     const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
     const city=lv(x,LEAD_COL.CITY)||'—';
     const d=m.endDate;
-    const mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    if(mk<cutoffKey)return;
-    const ml=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
-    months.set(mk,ml);
+    let mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    if(mk<cutoffKey)mk='__earlier__';
+    else months.set(mk,d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}));
     cities.add(city);
     if(!matrix[city])matrix[city]={};
     if(!matrix[city][mk])matrix[city][mk]=[];
@@ -5019,11 +5029,19 @@ function povShowDelayedByDim(dim,val){
   });
   const monthKeys=[...months.keys()].sort();
   const cityList=[...cities];
+  const rowTotals={},colTotals={};let grand=0,earlierTotal=0;
+  cityList.forEach(c=>{rowTotals[c]=0;
+    const en=((matrix[c]||{}).__earlier__||[]).length;rowTotals[c]+=en;earlierTotal+=en;grand+=en;
+    monthKeys.forEach(mk=>{const n=((matrix[c]||{})[mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
+  if(!grand){host.innerHTML='<div class="empty">No completed projects</div>';return;}
+  });
+  const monthKeys=[...months.keys()].sort();
+  const cityList=[...cities];
   const rowTotals={},colTotals={};let grand=0;
   cityList.forEach(c=>{rowTotals[c]=0;monthKeys.forEach(mk=>{const n=((matrix[c]||{})[mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
   if(!grand){host.innerHTML='<div class="empty">No completed projects in the last 6 months</div>';return;}
 const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
-    const cells=monthKeys.map(mk=>{
+    const cells=['__earlier__',...monthKeys].map(mk=>{
       const items=(matrix[c]||{})[mk]||[];
       if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
       let onTime=0,delay=0;
@@ -5038,17 +5056,15 @@ const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTo
       </div></td>`;
     }).join('');
     return `<tr><td style="font-weight:500;">${pemrEsc(c)}</td>${cells}<td style="text-align:right;font-weight:700;color:#0d9488;">${rowTotals[c]}</td></tr>`;
-  }).join('');
-  const totalRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);"><td style="font-weight:700;">Total</td>${monthKeys.map(mk=>`<td style="text-align:center;font-weight:700;color:#0d9488;">${colTotals[mk]}</td>`).join('')}<td style="text-align:right;font-weight:700;color:#0d9488;">${grand}</td></tr>`;
+  }).join('');const totalRow=`<tr style="border-top:2px solid var(--border2);background:var(--surface2);"><td style="font-weight:700;">Total</td><td style="text-align:center;font-weight:700;color:#0d9488;">${earlierTotal||'—'}</td>${monthKeys.map(mk=>`<td style="text-align:center;font-weight:700;color:#0d9488;">${colTotals[mk]||'—'}</td>`).join('')}<td style="text-align:right;font-weight:700;color:#0d9488;">${grand}</td></tr>`;
   window._povProjMatrix=matrix;
-  host.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${grand} projects completed · last 6 months. Click a cell for project list.</div><div class="table-wrap" style="max-height:400px;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>City</th>${monthKeys.map(mk=>`<th style="text-align:center;">${months.get(mk)}</th>`).join('')}<th style="text-align:right;">Total</th></tr></thead><tbody>${cityRows}${totalRow}</tbody></table></div>`;
+  host.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${grand} projects completed · all time (last 6 months + earlier). Click a cell for project list.</div><div class="table-wrap" style="max-height:400px;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>City</th><th style="text-align:center;">Earlier</th>${monthKeys.map(mk=>`<th style="text-align:center;">${months.get(mk)}</th>`).join('')}<th style="text-align:right;">Total</th></tr></thead><tbody>${cityRows}${totalRow}</tbody></table></div>`;
 }
 
 function povShowProjCell(key){
   const [city,mk]=key.split('|');
   const items=((window._povProjMatrix||{})[city]||{})[mk]||[];
-  const [y,m]=mk.split('-').map(Number);
-  const ml=new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const ml=mk==='__earlier__'?'Earlier months':(()=>{const [y,m]=mk.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});})();
 const cards=items.map(it=>{
     const pe=lv(it.row,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
     const cat=sizeCategoryOf(it.row);
