@@ -1467,21 +1467,23 @@ let completedPctSum=0;
       <i class="ti ti-history" style="font-size:16px;color:#4f8ef7;"></i>
       <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:500;">Last DPR Update</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    
+      <div style="display:flex;flex-direction:column;gap:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg2);border-radius:8px;">
         <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ti-calendar" style="font-size:13px;color:#4f8ef7;"></i>Last Updated</span>
         <span style="font-size:13px;font-weight:600;color:#4f8ef7;">${lastDPRDate?fmtDate(lastDPRDate):'—'}</span>
+      </div>
+      <div style="padding:6px 10px;background:var(--bg2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:6px;"><i class="ti ti-clipboard-list" style="font-size:13px;color:#34c98a;"></i>Latest work plan update</div>
+        <div style="font-size:12px;font-weight:500;color:var(--text);line-height:1.4;">${lastWorkPlan||'—'}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:rgba(231,76,60,0.1);border-radius:8px;border:1px solid rgba(231,76,60,0.25);">
         <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ti-alert-triangle" style="font-size:13px;color:#e74c3c;"></i>Pending From</span>
         <span style="font-size:13px;font-weight:700;color:#e74c3c;">${pendingFromDays!==null?pendingFromDays+' days':'—'}</span>
       </div>
-      <div style="padding:6px 10px;background:var(--bg2);border-radius:8px;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:6px;"><i class="ti ti-clipboard-list" style="font-size:13px;color:#34c98a;"></i>Work Plan</div>
-        <div style="font-size:12px;font-weight:500;color:var(--text);line-height:1.4;">${lastWorkPlan||'—'}</div>
-      </div>
     </div>
-  </div>`;
+    
+    </div>`;
   document.getElementById('proj-metrics').innerHTML=
     metricWithBar('ti-list-check','Total Items',total_,'Workplan items','#4f8ef7',100,100)+
     metricWithBar('ti-circle-check','Completed',completedCount,`${completedPct}% of items`,'#34c98a',completedPct,'#34c98a')+
