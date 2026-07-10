@@ -1354,7 +1354,14 @@ function renderProjectSummary(projId,projName){
   const norm=s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,'');
   const tbody=document.getElementById('proj-workplan-body');
   let completedCount=0,wipCount=0,pendingCount=0;
+
+  const _mmNA=meterMergingNA(projId);
   const rows=workplanItemsRaw.map(({plan,expectedPct},idx)=>{
+    if(isMeterMerging(plan)&&_mmNA){
+      completedCount++;
+      return{plan,expectedPct,status:'done',pct:100,mp:0,startDate:null,endDate:null,remarks:'Not applicable (Non-SSE) — auto-completed',matchedDPR:[],na:true};
+    }
+    const optional=isOptionalWorkplan(plan);
     const planNorm=norm(plan);
     const matchedDPR=dprForProj.filter(r=>{
       const dp=norm(v(r,D_PLAN));
@@ -1362,8 +1369,10 @@ function renderProjectSummary(projId,projName){
     });
     if(!matchedDPR.length){
       pendingCount++;
-      return{plan,expectedPct,status:'pending',pct:0,mp:0,startDate:null,endDate:null,remarks:'',matchedDPR:[]};
+      return{plan,expectedPct,status:'pending',pct:0,mp:0,startDate:null,endDate:null,remarks:'',matchedDPR:[],optional};
     }
+
+    
     const sorted=[...matchedDPR].sort((a,b)=>{
       const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));
       if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;
@@ -1380,7 +1389,7 @@ function renderProjectSummary(projId,projName){
     let status,pct;
     if(latestTask.includes('complet')||latestPct>=100){status='done';pct=100;completedCount++;}
     else{status='wip';pct=latestPct;wipCount++;}
-    return{plan,expectedPct,status,pct,mp:totalMP,startDate,endDate,remarks:latestRemarks,matchedDPR:sorted};
+    return{plan,expectedPct,status,pct,mp:totalMP,startDate,endDate,remarks:latestRemarks,matchedDPR:sorted,optional};
   });
   pendingCount=workplanItems.length-completedCount-wipCount;
   tbody.innerHTML=rows.map((r,i)=>{
@@ -1400,7 +1409,7 @@ function renderProjectSummary(projId,projName){
     const days=r.startDate&&r.endDate?Math.ceil((r.endDate-r.startDate)/(1000*60*60*24))+1:'—';
     return `<tr>
       <td style="color:var(--muted)">${i+1}</td>
-      <td style="font-weight:500">${r.plan}</td>
+      <td style="font-weight:500">${r.plan}${r.optional?' <span class="badge bgr" style="font-size:9px;">Optional</span>':''}${r.na?' <span class="badge bb" style="font-size:9px;">N/A</span>':''}</td>
       <td><div>${statusBadge}</div><div style="margin-top:6px;" class="progress-col">${progBar}</div></td>
       <td>${r.mp||'—'}</td>
       <td style="font-size:11px;white-space:nowrap">${r.startDate?fmtDate(r.startDate):'—'}</td>
@@ -1581,7 +1590,19 @@ function clearDPRLogFilter(){
   renderProjDPRLog();
 }
 // ── PROJECT OVERVIEW ──────────────────────────────────────────
-const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,CLUSTER:30,CITYMGR:32,PE:34};
+const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,EPC:20,CLUSTER:30,CITYMGR:32,PE:34};
+
+// Optional workplans — excluded from project completion
+const OPTIONAL_WORKPLANS=['solaredgelayoutcreation','handrailinstallationwork','modulecleaningsysteminstallation','internetprovidedbyclient'];
+const _wpNorm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+function isOptionalWorkplan(plan){const p=_wpNorm(plan);return OPTIONAL_WORKPLANS.some(o=>p===o||p.includes(o)||o.includes(p));}
+// "Meter Merging Work" applicable only when Lead Tracker col U = "SSE"; otherwise auto-complete (N/A)
+function isMeterMerging(plan){return _wpNorm(plan).includes('metermerging');}
+function meterMergingNA(projId){
+  const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===projId);
+  if(!row)return false;
+  return String(lv(row,LEAD_COL.EPC)).trim().toUpperCase()!=='SSE';
+}
 
 
 const SIZE_CATEGORIES=['Micro','Alpha','Beta','Gamma','Omega'];
@@ -1880,8 +1901,19 @@ const dates=dprRows.map(x=>parseDate(v(x,D_TS))).filter(Boolean).sort((a,b)=>a-b
   const wr=D.workplan.r;
   const tmpl=wr.filter(x=>(x[0]||'').trim()).map(x=>({plan:(x[0]||'').trim(),expectedPct:parseFloat((x[1]||'').trim())||0}));
   const norm=s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,'');
-let completedPctSum=0;
+
+  let completedPctSum=0;
+  const mmNA=meterMergingNA(projId);
+  let reqTotal=0,reqDone=0;   // required (non-optional) workplan items
   tmpl.forEach(({plan,expectedPct})=>{
+    const optional=isOptionalWorkplan(plan);
+    const autoNA=isMeterMerging(plan)&&mmNA;   // Meter Merging not applicable → auto-completed
+    if(!optional)reqTotal++;
+    if(autoNA){
+      if(!optional)reqDone++;
+      completedPctSum+=(expectedPct||0);
+      return;
+    }
     const pn=norm(plan);
     const matched=dprRows.filter(x=>{const dp=norm(v(x,D_PLAN));return dp===pn||dp.includes(pn)||pn.includes(dp);});
     if(!matched.length)return;
@@ -1890,14 +1922,14 @@ let completedPctSum=0;
     const latestPct=parseFloat(v(latest,D_PCT))||0;
     const latestTask=v(latest,D_TASK).toLowerCase();
     const isDone=latestTask.includes('complet')||latestPct>=100;
-    if(isDone)completedPctSum+=(expectedPct||0);   // sum Workplan % only for COMPLETED tasks
+    if(isDone){completedPctSum+=(expectedPct||0);if(!optional)reqDone++;}
   });
-  const weightedPct=Math.round(completedPctSum); 
+  const weightedPct=Math.min(100,Math.round(completedPctSum));
   let status;
   if(!dprRows.length)status='pending';
-  else if(weightedPct>=100)status='done';
+  else if(reqTotal>0&&reqDone>=reqTotal)status='done';   // all REQUIRED items completed
   else status='wip';
-
+  
   // Installation TAT: completed → end−start; otherwise → today−start
   if(startDate){
     if(status==='done' && endDate) tat=Math.ceil((endDate-startDate)/(1000*60*60*24))+1;
