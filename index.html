@@ -4797,12 +4797,20 @@ function povShowDelayedByDim(dim,val){
   const rowTotals={},colTotals={};let grand=0;
   cityList.forEach(c=>{rowTotals[c]=0;monthKeys.forEach(mk=>{const n=((matrix[c]||{})[mk]||[]).length;rowTotals[c]+=n;colTotals[mk]=(colTotals[mk]||0)+n;grand+=n;});});
   if(!grand){host.innerHTML='<div class="empty">No completed projects in the last 6 months</div>';return;}
-  const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
+const cityRows=cityList.filter(c=>rowTotals[c]>0).sort((a,b)=>rowTotals[b]-rowTotals[a]).map(c=>{
     const cells=monthKeys.map(mk=>{
       const items=(matrix[c]||{})[mk]||[];
       if(!items.length)return '<td style="text-align:center;color:var(--muted);">—</td>';
+      let onTime=0,delay=0;
+      items.forEach(it=>{const d=povComputeDelay(it.row);if(d&&d.delayBy>0)delay++;else onTime++;});
       const esc=(c+'|'+mk).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      return `<td style="text-align:center;"><span onclick="povShowProjCell('${esc}')" style="cursor:pointer;display:inline-block;min-width:32px;padding:3px 10px;background:rgba(13,148,136,0.15);color:#0d9488;border:1px solid rgba(13,148,136,0.3);border-radius:12px;font-weight:600;font-size:12px;">${items.length}</span></td>`;
+      return `<td style="text-align:center;"><div onclick="povShowProjCell('${esc}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;min-width:32px;padding:6px 12px;background:rgba(13,148,136,0.15);color:#0d9488;border:1px solid rgba(13,148,136,0.3);border-radius:10px;font-weight:700;font-size:13px;">${items.length}</span>
+        <span style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+          <span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.25);white-space:nowrap;">On time ${onTime}</span>
+          <span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;background:rgba(245,166,35,0.15);color:#f5a623;border:1px solid rgba(245,166,35,0.25);white-space:nowrap;">Delay ${delay}</span>
+        </span>
+      </div></td>`;
     }).join('');
     return `<tr><td style="font-weight:500;">${pemrEsc(c)}</td>${cells}<td style="text-align:right;font-weight:700;color:#0d9488;">${rowTotals[c]}</td></tr>`;
   }).join('');
