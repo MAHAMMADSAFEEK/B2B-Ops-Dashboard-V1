@@ -1387,16 +1387,17 @@ function renderProjectSummary(projId,projName){
       if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;
       return da-db;
     });
-    const latest=sorted[sorted.length-1];
+const latest=sorted[sorted.length-1];
     const latestPct=parseFloat(v(latest,D_PCT))||0;
     const latestTask=v(latest,D_TASK).toLowerCase();
+    const anyDone=matchedDPR.some(r=>{const p=parseFloat(v(r,D_PCT))||0;const t=String(v(r,D_TASK)||'').toLowerCase();return t.includes('complet')||p>=100;});
     const allDates=sorted.map(r=>parseDate(v(r,D_TS))).filter(Boolean);
     const startDate=allDates.length?allDates[0]:null;
     const endDate=allDates.length?allDates[allDates.length-1]:null;
     const totalMP=matchedDPR.reduce((s,r)=>s+(parseInt(v(r,D_MP))||0),0);
     const latestRemarks=v(latest,D_REM);
-    let status,pct;
-    if(latestTask.includes('complet')||latestPct>=100){status='done';pct=100;completedCount++;}
+let status,pct;
+    if(anyDone){status='done';pct=100;completedCount++;}
     else{status='wip';pct=latestPct;wipCount++;}
     return{plan,expectedPct,status,pct,mp:totalMP,startDate,endDate,remarks:latestRemarks,matchedDPR:sorted,optional};
   });
@@ -1924,11 +1925,7 @@ const dates=dprRows.map(x=>parseDate(v(x,D_TS))).filter(Boolean).sort((a,b)=>a-b
     const pn=norm(plan);
     const matched=dprRows.filter(x=>{const dp=norm(v(x,D_PLAN));return dp===pn||dp.includes(pn)||pn.includes(dp);});
     if(!matched.length)return;
-    const sorted=[...matched].sort((a,b)=>{const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;return da-db;});
-    const latest=sorted[sorted.length-1];
-    const latestPct=parseFloat(v(latest,D_PCT))||0;
-    const latestTask=v(latest,D_TASK).toLowerCase();
-    const isDone=latestTask.includes('complet')||latestPct>=100;
+const isDone=matched.some(r=>{const p=parseFloat(v(r,D_PCT))||0;const t=String(v(r,D_TASK)||'').toLowerCase();return t.includes('complet')||p>=100;});
     if(isDone){completedPctSum+=(expectedPct||0);if(!optional)reqDone++;}
   });
   const weightedPct=Math.min(100,Math.round(completedPctSum));
@@ -4233,12 +4230,12 @@ function openPhaseSummary(projId,projName){
     let status='pending',pct=0,startDate=null,endDate=null;
     if(matched.length){
       const sorted=[...matched].sort((a,b)=>{const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;return da-db;});
-      const latest=sorted[sorted.length-1];
+const latest=sorted[sorted.length-1];
       const latestPct=parseFloat(v(latest,D_PCT))||0;
-      const latestTask=v(latest,D_TASK).toLowerCase();
+      const anyDone=matched.some(r=>{const p=parseFloat(v(r,D_PCT))||0;const t=String(v(r,D_TASK)||'').toLowerCase();return t.includes('complet')||p>=100;});
       const dates=sorted.map(r=>parseDate(v(r,D_TS))).filter(Boolean);
       startDate=dates[0]||null;endDate=dates[dates.length-1]||null;
-      if(latestTask.includes('complet')||latestPct>=100){status='done';pct=100;}
+      if(anyDone){status='done';pct=100;}
       else{status='wip';pct=latestPct;}
     }
     phases[phase].items.push({plan,status,pct,startDate,endDate});
@@ -4771,10 +4768,8 @@ function povGetCurrentPhase(projId){
   let latestWip=null,latestWipDate=null;
   Object.entries(byPlan).forEach(([plan,items])=>{
     const sorted=items.sort((a,b)=>{const da=parseDate(v(a,D_TS)),db=parseDate(v(b,D_TS));return (da?da:0)-(db?db:0);});
-    const latest=sorted[sorted.length-1];
-    const pct=parseFloat(v(latest,D_PCT))||0;
-    const task=v(latest,D_TASK).toLowerCase();
-    const done=task.includes('complet')||pct>=100;
+const latest=sorted[sorted.length-1];
+    const done=items.some(r=>{const p=parseFloat(v(r,D_PCT))||0;const t=String(v(r,D_TASK)||'').toLowerCase();return t.includes('complet')||p>=100;});
     if(!done){const d=parseDate(v(latest,D_TS));if(d&&(!latestWipDate||d>latestWipDate)){latestWipDate=d;latestWip=plan;}}
   });
   if(!latestWip){
