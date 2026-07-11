@@ -1657,9 +1657,7 @@ let _povCache={};
 let _povDelayBucket='';
 function setPOVDelayBucket(b){
   // Collect matching PIDs from current filtered rows (respect other POV filters)
-  const today=new Date();today.setHours(0,0,0,0);
-  const bucketOf=(x)=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));if(!m.activityCount||!m.lastActivity)return'upNever';const days=Math.floor((today-m.lastActivity)/(1000*60*60*24));if(days>=30)return'up30';if(days>=15)return'up15';if(days>=7)return'up7';return'upOk';};
-  const rows=D.lead.r.filter(x=>{
+const rows=D.lead.r.filter(x=>{
     if(!lv(x,LEAD_COL.PID))return false;
     if(_povMS.city.size&&!_povMS.city.has(lv(x,LEAD_COL.CITY)))return false;
     if(_povMS.cluster.size&&!_povMS.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
@@ -1669,7 +1667,7 @@ function setPOVDelayBucket(b){
     if(_povMS.status.size&&!povProjectStatuses(x).some(t=>_povMS.status.has(t)))return false;
     return true;
   });
-  const pids=rows.filter(x=>bucketOf(x)===b).map(x=>lv(x,LEAD_COL.PID));
+  const pids=rows.filter(x=>povUpdBucketOf(x)===b).map(x=>lv(x,LEAD_COL.PID));
   if(!pids.length){alert('No projects in this bucket');return;}
   // Set PID filter to these projects
   _povMS.pid=new Set(pids);
@@ -1979,9 +1977,30 @@ function povCityTable(cityCount,citySize){
   </div>`;
 }
 
-function povDelayReport({upNever,upOk,up7,up15,up30,totalProjects}){
+const POV_UPD_BUCKETS=[
+  {key:'u2',  max:2,       label:'0–2 days',  color:'#34c98a', icon:'ti-circle-check'},
+  {key:'u5',  max:5,       label:'2–5 days',  color:'#3bc0d8', icon:'ti-clock'},
+  {key:'u7',  max:7,       label:'5–7 days',  color:'#4f8ef7', icon:'ti-clock-hour-4'},
+  {key:'u10', max:10,      label:'7–10 days', color:'#f5a623', icon:'ti-clock-exclamation'},
+  {key:'u15', max:15,      label:'10–15 days',color:'#f5a623', icon:'ti-alert-triangle'},
+  {key:'u20', max:20,      label:'15–20 days',color:'#e8743b', icon:'ti-alert-triangle'},
+  {key:'u30', max:30,      label:'20–30 days',color:'#e74c3c', icon:'ti-alert-octagon'},
+  {key:'u30p',max:Infinity,label:'30+ days',  color:'#c0392b', icon:'ti-alert-octagon'}
+];
+function povUpdBucketOf(x){
+  const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+  if(!m.activityCount||!m.lastActivity)return 'upNever';
+  const t=new Date();t.setHours(0,0,0,0);
+  const days=Math.floor((t-m.lastActivity)/86400000);
+  for(const b of POV_UPD_BUCKETS){if(days<=b.max)return b.key;}
+  return 'u30p';
+}
+function povUpdBucketLabel(key){if(key==='upNever')return 'Never updated';const b=POV_UPD_BUCKETS.find(b=>b.key===key);return b?('No update '+b.label):key;}
+
+function povDelayReport(counts,totalProjects){
   if(!totalProjects&&!_povDelayBucket)return'<div class="empty">No data</div>';
-  const delayed=up7+up15+up30;
+  const delayed=(counts.u10||0)+(counts.u15||0)+(counts.u20||0)+(counts.u30||0)+(counts.u30p||0);
+  const upNever=counts.upNever||0;
   const active=_povDelayBucket;
 const line=(key,color,icon,text,count)=>{const isActive=active===key;const dim=active&&!isActive?'opacity:.45;':'';
     const pct=totalProjects?Math.round(count/totalProjects*100):0;
@@ -1997,12 +2016,9 @@ const line=(key,color,icon,text,count)=>{const isActive=active===key;const dim=a
     : `<div style="margin-bottom:12px;padding:10px 12px;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);border-radius:8px;font-size:12px;color:var(--text);">
         <strong style="color:#e74c3c;">${delayed}</strong> project${delayed===1?'':'s'} delayed — no activity update in 7+ days${upNever?`, and <strong style="color:#8b92b0;">${upNever}</strong> never updated`:''}. <span style="color:var(--muted);">Click a row to filter the tab.</span>
       </div>`;
-  return banner+`<table style="font-size:12px;width:100%;">
+return banner+`<table style="font-size:12px;width:100%;">
     <tbody>
-      ${line('up30','#e74c3c','ti-alert-octagon','Critically delayed — no update 30+ days',up30)}
-      ${line('up15','#f5a623','ti-alert-triangle','Delayed — no update 15–29 days',up15)}
-      ${line('up7','#f5a623','ti-clock-exclamation','Delayed — no update 7–14 days',up7)}
-      ${line('upOk','#34c98a','ti-circle-check','Up to date — updated within 7 days',upOk)}
+      ${POV_UPD_BUCKETS.map(b=>line(b.key,b.color,b.icon,'No update — '+b.label,counts[b.key]||0)).join('')}
       ${line('upNever','#8b92b0','ti-clock-off','Never updated (no attendance or DPR yet)',upNever)}
     </tbody>
   </table>`;
@@ -2024,10 +2040,9 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     return true;
   });
   const today=new Date();today.setHours(0,0,0,0);
-  const bucketOf=(x)=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));if(!m.activityCount||!m.lastActivity)return'upNever';const days=Math.floor((today-m.lastActivity)/(1000*60*60*24));if(days>=30)return'up30';if(days>=15)return'up15';if(days>=7)return'up7';return'upOk';};
-  let upNever=0,upOk=0,up7=0,up15=0,up30=0;
-  baseRows.forEach(x=>{const b=bucketOf(x);if(b==='upNever')upNever++;else if(b==='up30')up30++;else if(b==='up15')up15++;else if(b==='up7')up7++;else upOk++;});
-  const rows=_povDelayBucket?baseRows.filter(x=>bucketOf(x)===_povDelayBucket):baseRows;
+ const updCounts={upNever:0};POV_UPD_BUCKETS.forEach(b=>updCounts[b.key]=0);
+  baseRows.forEach(x=>{updCounts[povUpdBucketOf(x)]++;});
+  const rows=_povDelayBucket?baseRows.filter(x=>povUpdBucketOf(x)===_povDelayBucket):baseRows;
   const activeFilters=[fCity,fCluster,fCityMgr,fPE,fSizeCat,fStatus].filter(s=>s.size).length+(_povDelayBucket?1:0);
   const tag=document.getElementById('pov-filter-tag');
   if(tag){tag.style.display=activeFilters?'inline':'none';if(activeFilters)tag.textContent=`${activeFilters} filter${activeFilters>1?'s':''} active`;}
@@ -2062,7 +2077,7 @@ if(m.status==='done')completed++;
     (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})();
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
-  document.getElementById('pov-delay-report').innerHTML=povDelayReport({upNever,upOk,up7,up15,up30,totalProjects});
+document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,totalProjects);
   document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>City Manager</th><th>CPM</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
   const tbody=document.getElementById('pov-body');
   if(!rows.length){tbody.innerHTML='<tr><td colspan="19" class="empty">No projects match the selected filters</td></tr>';return;}
@@ -4119,9 +4134,7 @@ function buildHRC(){
       if(fStatus.size&&!povProjectStatuses(x).some(t=>fStatus.has(t)))return false;
       return true;
     });
-    const today=new Date();today.setHours(0,0,0,0);
-    const bucketOf=(x)=>{const m=computeProjectMetrics(lv(x,LEAD_COL.PID));if(!m.activityCount||!m.lastActivity)return'upNever';const days=Math.floor((today-m.lastActivity)/(1000*60*60*24));if(days>=30)return'up30';if(days>=15)return'up15';if(days>=7)return'up7';return'upOk';};
-    if(_povDelayBucket)rows=rows.filter(x=>bucketOf(x)===_povDelayBucket);
+    if(_povDelayBucket)rows=rows.filter(x=>povUpdBucketOf(x)===_povDelayBucket);
     if(key==='notassigned')      rows=rows.filter(x=>!lv(x,LEAD_COL.PE));
     else if(key==='installcompleted')rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).installStatus==='done');
     else if(key==='completed')   rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done');
@@ -4130,7 +4143,7 @@ function buildHRC(){
     else if(key==='pending')     rows=rows.filter(x=>computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='pending');
     else if(key.startsWith('city:'))  rows=rows.filter(x=>lv(x,LEAD_COL.CITY)===key.slice(5));
     else if(key.startsWith('size:'))  rows=rows.filter(x=>sizeCategoryOf(x)===key.slice(5));
-    else if(key.startsWith('bucket:'))rows=rows.filter(x=>bucketOf(x)===key.slice(7));
+    else if(key.startsWith('bucket:'))rows=rows.filter(x=>povUpdBucketOf(x)===key.slice(7));
     return rows;
   }
 
@@ -4139,7 +4152,7 @@ function buildHRC(){
     if(m[key])return m[key];
     if(key.startsWith('city:'))return 'Projects in '+key.slice(5);
     if(key.startsWith('size:'))return key.slice(5)+' Size Projects';
-    if(key.startsWith('bucket:')){const b={up30:'Critically Delayed (30+ days)',up15:'Delayed (15–29 days)',up7:'Delayed (7–14 days)',upOk:'Up to Date',upNever:'Never Updated'};return b[key.slice(7)]||key;}
+    if(key.startsWith('bucket:'))return povUpdBucketLabel(key.slice(7));
     return 'Breakdown';
   }
 
