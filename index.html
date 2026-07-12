@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Ops Dashboard</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;min-height:100vh;}
@@ -38,6 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tabs .tab:nth-child(6){--tc:#e8743b;}
 .tabs .tab:nth-child(7){--tc:#e0518a;}
 .tabs .tab:nth-child(8){--tc:#7d5fff;}
+.tabs .tab:nth-child(9){--tc:#2ecc71;}
 .tab.active{opacity:1;box-shadow:0 4px 14px rgba(0,0,0,0.4);transform:translateY(-1px);}
 .tab-content{display:none;}
 .tab-content.active{display:block;}
@@ -227,6 +229,15 @@ tr.pmr-row-delay td{animation:pmrRowDelayBlink 1.6s ease-in-out infinite;}
 tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
   
 .pmr-install{animation:pmrBlueBlink 1.4s ease-in-out infinite;border:1px solid rgba(79,142,247,0.55) !important;position:relative;}
+
+/* ── Project Map markers ── */
+.map-pin{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;}
+.map-pin i{transform:rotate(45deg);color:#fff;font-size:13px;}
+@keyframes mapBlinkBlue{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,0.9),0 2px 8px rgba(0,0,0,.5);}50%{box-shadow:0 0 0 10px rgba(79,142,247,0),0 2px 8px rgba(0,0,0,.5);}}
+.map-pin.map-closed{animation:mapBlinkBlue 1.2s ease-in-out infinite;}
+.leaflet-popup-content-wrapper{background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:10px;}
+.leaflet-popup-tip{background:var(--surface);}
+.leaflet-popup-content{font-size:12px;font-family:inherit;}
 .pmr-install::before{content:'*';position:absolute;top:-2px;right:4px;color:#4f8ef7;font-weight:900;font-size:14px;text-shadow:0 0 4px rgba(79,142,247,0.6);}
 
 </style>
@@ -275,6 +286,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     <button class="tab" onclick="switchTab('pmr',this)"><i class="ti ti-calendar-month"></i> Project wise Monthly report</button>
     <button class="tab" onclick="switchTab('pemr',this)"><i class="ti ti-user-check"></i> PE Monthly Report</button>
     <button class="tab" onclick="switchTab('vmr',this)"><i class="ti ti-building-store"></i> Vendor Monthly Report</button>
+    <button class="tab" onclick="switchTab('map',this)"><i class="ti ti-map-2"></i> Project Map</button>
   </div>
 
   <!-- PROJECT OVERVIEW TAB -->
@@ -605,6 +617,17 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     </div>
   </div>
 
+  <!-- PROJECT MAP TAB -->
+  <div id="tab-map" class="tab-content">
+    <div style="padding:16px 24px 24px;">
+      <div class="section-title">Project Map <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">Lat-Long from Lead Tracker col J · click a marker for details</span></div>
+      <div class="pmr-legend" id="map-legend"></div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div id="proj-map" style="height:74vh;width:100%;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- PROJECT SUMMARY TAB -->
   <div id="tab-proj" class="tab-content">
     <div class="section-title">Project Summary</div>
@@ -712,6 +735,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // ── Config ────────────────────────────────────────────────────
 const SID='1NuqbG_4a3bGS4Wd6dKvxsP0FN2tE6yMupkQ-1fYDQNA';
@@ -753,7 +777,7 @@ function parseSheet(gid){return new Promise((res,rej)=>{
     error:e=>{clearTimeout(timer);rej(e);}});
 });}
 function setOverlay(txt){document.getElementById('overlay-txt').textContent=txt;}
-function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');}
+function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');if(name==='map'){setTimeout(()=>{buildProjMap();if(_projMap)_projMap.invalidateSize();},50);}}
 function fillSel(id,vals){const s=document.getElementById(id);if(!s)return;const cur=s.value;while(s.options.length>1)s.remove(1);[...new Set(vals)].filter(Boolean).sort().forEach(val=>{const o=document.createElement('option');o.value=val;o.textContent=val;if(val===cur)o.selected=true;s.appendChild(o);});}
 function metric(icon,lbl,val,sub,color){return `<div class="metric" style="--mc:${color}"><div class="micon"><i class="ti ${icon}"></i></div><div class="mlbl">${lbl}</div><div class="mval">${val}</div>${sub?`<div class="msub">${sub}</div>`:''}</div>`;}
 function metricWithBar(icon,lbl,val,sub,color,pct,barColor){
@@ -5283,8 +5307,70 @@ function povShowPhaseTATProjectList(label,items,backFn){
   ov.style.display='flex';
 }
 
-  
+  // ── PROJECT MAP ───────────────────────────────────────────────
+let _projMap=null,_projMapLayer=null;
+const MAP_STATUS_CFG={
+  closed:  {label:'Project Closed',                       color:'#4f8ef7', icon:'ti-sun',   blink:true},
+  install: {label:'Installation Completed (O&M pending)', color:'#34c98a', icon:'ti-check', blink:false},
+  wip:     {label:'In Process',                           color:'#f5a623', icon:'ti-loader',blink:false},
+  notass:  {label:'Yet to Assign',                        color:'#e74c3c', icon:'ti-user-off',blink:false}
+};
+function mapParseLatLong(raw){
+  if(!raw)return null;
+  const m=String(raw).match(/(-?\d+\.?\d*)\s*[, ]\s*(-?\d+\.?\d*)/);
+  if(!m)return null;
+  const lat=parseFloat(m[1]),lng=parseFloat(m[2]);
+  if(isNaN(lat)||isNaN(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
+  return [lat,lng];
+}
+function mapStatusOf(x){
+  if(!lv(x,LEAD_COL.PE))return 'notass';
+  const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+  if(m.status==='done')return 'closed';
+  if(m.installStatus==='done')return 'install';
+  return 'wip';
+}
+function buildProjMap(){
+  const host=document.getElementById('proj-map');if(!host)return;
+  if(typeof L==='undefined'){host.innerHTML='<div class="empty">Map library failed to load</div>';return;}
+  const legend=document.getElementById('map-legend');
+  if(!_projMap){
+    _projMap=L.map('proj-map',{zoomControl:true}).setView([19.5,76.5],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_projMap);
+    _projMapLayer=L.layerGroup().addTo(_projMap);
+  }
+  _projMapLayer.clearLayers();
+  const counts={closed:0,install:0,wip:0,notass:0};let plotted=0,noGeo=0;
+  const bounds=[];
+  D.lead.r.forEach(x=>{
+    const pid=lv(x,LEAD_COL.PID);if(!pid)return;
+    const ll=mapParseLatLong(lv(x,9)); // col J = index 9
+    if(!ll){noGeo++;return;}
+    const st=mapStatusOf(x);counts[st]++;plotted++;
+    const cfg=MAP_STATUS_CFG[st];
+    const icon=L.divIcon({className:'',html:`<div class="map-pin${cfg.blink?' map-closed':''}" style="background:${cfg.color};"><i class="ti ${cfg.icon}"></i></div>`,iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-24]});
+    const name=lv(x,LEAD_COL.PNAME)||pid;
+    const m=computeProjectMetrics(pid);
+    const escId=pid.replace(/'/g,"\\'"),escName=name.replace(/'/g,"\\'");
+    const popup=`<div style="min-width:200px;">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${pemrEsc(name)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">${pemrEsc(pid)} · ${pemrEsc(lv(x,LEAD_COL.CITY))||'—'}</div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+        <div>Status: <b style="color:${cfg.color};">${cfg.label}</b></div>
+        <div>PE: <b>${lv(x,LEAD_COL.PE)||'Not Assigned'}</b></div>
+        <div>Size: <b>${lv(x,LEAD_COL.SIZE)||'—'} kW</b> · Completion: <b>${m.weightedPct}%</b></div>
+      </div>
+      <a onclick="openProjectSummaryFor('${escId}','${escName}')" style="display:inline-block;margin-top:8px;padding:4px 10px;background:rgba(79,142,247,0.15);color:#4f8ef7;border:1px solid rgba(79,142,247,0.3);border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;">View Summary →</a>
+    </div>`;
+    L.marker(ll,{icon}).bindPopup(popup).addTo(_projMapLayer);
+    bounds.push(ll);
+  });
+  if(bounds.length)_projMap.fitBounds(bounds,{padding:[40,40],maxZoom:12});
+  if(legend)legend.innerHTML=Object.entries(MAP_STATUS_CFG).map(([k,c])=>`<span class="lg"><span class="sw" style="background:${c.color};${c.blink?'animation:pmrBlueBlink 1.2s infinite;':''}"></span>${c.label} (${counts[k]})</span>`).join('')+`<span class="lg" style="margin-left:auto;">${plotted} plotted · ${noGeo} without lat-long</span>`;
+}
 loadAll();
+
+  
 </script>
 </body>
 </html>
