@@ -197,6 +197,7 @@ tr:hover td{background:var(--surface2);}
 .pmr-green{background:rgba(52,201,138,.16);color:#34c98a;}
 .pmr-teal{background:rgba(56,178,210,.16);color:#3bc0d8;}
 .pmr-grey{background:rgba(139,146,176,.14);color:#8b92b0;}
+.pmr-hold{background:rgba(155,109,255,.18);color:#b79cff;border:1px dashed rgba(155,109,255,.5);}
 .pmr-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;}
 .pmr-modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;max-width:440px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
 .pemr-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
@@ -1636,7 +1637,7 @@ function clearDPRLogFilter(){
   renderProjDPRLog();
 }
 // ── PROJECT OVERVIEW ──────────────────────────────────────────
-const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,EPC:20,CLUSTER:30,CITYMGR:32,PE:34};
+const LEAD_COL={TOTAL:0,PID:1,CITY:2,PNAME:3,SIZE:5,EPC:20,CLUSTER:30,CITYMGR:32,PE:34,HOLDST:38,HOLDREM:39,HOLDLOG:40};
 
 // Optional workplans — excluded from project completion
 const OPTIONAL_WORKPLANS=['solaredgelayoutcreation','handrailinstallationwork','modulecleaningsysteminstallation','internetprovidedbyclient'];
@@ -1650,6 +1651,39 @@ function meterMergingNA(projId){
   return String(lv(row,LEAD_COL.EPC)).trim().toUpperCase()!=='SSE';
 }
 
+
+// ── Hold / Cancel parsing (Lead Tracker col AO activity log) ──
+function povParseHoldDate(s){
+  if(!s)return null;
+  const m=String(s).match(/(\d{1,2})-([A-Za-z]{3,9})-(\d{4})/);
+  if(m){const d=new Date(`${m[2]} ${m[1]}, ${m[3]}`);if(!isNaN(d))return d;}
+  return parseDate(s);
+}
+function povHoldInfo(x){
+  const log=lv(x,LEAD_COL.HOLDLOG);
+  const res={events:[],onHold:false,cancelled:false,holdIntervals:[],holdSince:null,holdRemark:'',cancelDate:null,cancelRemark:'',totalHoldDays:0};
+  if(!log)return res;
+  const re=/(unhold|hold|cancel(?:led)?)\s+on\s+(\d{1,2}-[A-Za-z]{3,9}-\d{4})(?:\s*-\s*([^\n]*?))?(?=\s*(?:unhold|hold|cancel(?:led)?)\s+on|\s*$)/gi;
+  let m;
+  while((m=re.exec(log))!==null){
+    const t=m[1].toLowerCase();
+    res.events.push({type:t.startsWith('cancel')?'cancel':t==='unhold'?'unhold':'hold',date:povParseHoldDate(m[2]),raw:m[2],remark:(m[3]||'').trim()});
+  }
+  if(!res.events.length)return res;
+  const today=new Date();today.setHours(0,0,0,0);
+  let open=null;
+  res.events.forEach(e=>{
+    if(e.type==='hold'){if(!open)open={start:e.date,end:null,remark:e.remark};}
+    else if(e.type==='unhold'){if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}}
+    else if(e.type==='cancel'){
+      if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}
+      res.cancelled=true;res.cancelDate=e.date;res.cancelRemark=e.remark;
+    }
+  });
+  if(open){res.holdIntervals.push(open);res.onHold=!res.cancelled;res.holdSince=open.start;res.holdRemark=open.remark;}
+  res.holdIntervals.forEach(iv=>{if(iv.start){const end=iv.end||today;res.totalHoldDays+=Math.max(0,Math.round((end-iv.start)/86400000));}});
+  return res;
+}
 
 const SIZE_CATEGORIES=['Micro','Alpha','Beta','Gamma','Omega'];
 const SIZE_CAT_COLORS={Micro:'#3bc0d8',Alpha:'#4f8ef7',Beta:'#f5a623',Gamma:'#34c98a',Omega:'#e0518a'}; 
@@ -1724,7 +1758,7 @@ function clearPOVDelayBucket(){_povDelayBucket='';buildPOV();}
 function lv(row,i){return (i>=0 && row[i]!=null)?String(row[i]).trim():'';}
 function povNum(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
 
-const POV_STATUSES=['Not Assigned','Installation On Going','Installation Completed But O&M pending','Project Closed'];
+const POV_STATUSES=['Not Assigned','Installation On Going','Installation Completed But O&M pending','Project Closed','On Hold','Cancelled'];
 const POV_MS_CFG={
   city:    {col:'CITY',    all:'All Cities',    ph:'Search cities…'},
   cluster: {col:'CLUSTER', all:'All Clusters',  ph:'Search clusters…'},
@@ -1744,6 +1778,9 @@ let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},sizecat:{},status:{},pname
   
 
 function povProjectStatuses(x){
+  const h=povHoldInfo(x);
+  if(h.cancelled)return['Cancelled'];
+  if(h.onHold)return['On Hold'];
   const tags=[];
   if(!lv(x,LEAD_COL.PE))tags.push('Not Assigned');
   const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
@@ -2113,7 +2150,9 @@ if(m.status==='done')completed++;
     metricWithBar('ti-circle-check','Project Completed',completed,`${totalProjects?Math.round(completed/totalProjects*100):0}% · all workplan done`,'#0d9488',totalProjects?completed/totalProjects*100:0,'#0d9488')+
     metricWithBar('ti-loader','In Process',inProcess,`${totalProjects?Math.round(inProcess/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?inProcess/totalProjects*100:0,'#f5a623')+
     metricWithBar('ti-clock','Pending',pending,`${pendingAssigned} actual (assigned) · ${pendingNotAssigned} not assigned`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c')+
-    (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})();
+    (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})()+
+    (()=>{let hd=0,cn=0;rows.forEach(x=>{const h=povHoldInfo(x);if(h.cancelled)cn++;else if(h.onHold)hd++;});return `<div class="metric" style="--mc:#9b6dff;cursor:pointer;" onclick="povShowHoldList('hold')"><div class="micon"><i class="ti ti-player-pause"></i></div><div class="mlbl">ON HOLD</div><div class="mval">${hd}</div><div class="msub">${totalProjects?Math.round(hd/totalProjects*100):0}% of projects · click for list</div></div>`+
+      `<div class="metric" style="--mc:#e0518a;cursor:pointer;" onclick="povShowHoldList('cancel')"><div class="micon"><i class="ti ti-ban"></i></div><div class="mlbl">CANCELLED</div><div class="mval">${cn}</div><div class="msub">${totalProjects?Math.round(cn/totalProjects*100):0}% of projects · click for list</div></div>`;})();
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
 document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,totalProjects);
@@ -2136,7 +2175,10 @@ document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,t
     else if(m.installStatus==='wip')installBadge=`<span class="badge bo">⟳ In Process</span>${m.finalStage&&m.finalStage!=='—'?`<div style="font-size:11px;color:var(--muted);margin-top:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.finalStage.replace(/"/g,'&quot;')}">${m.finalStage}</div>`:''}`;
     else installBadge='<span class="badge bgr">— Pending</span>';
     let projBadge;
-    if(m.status==='done')projBadge='<span class="badge bg">✓ Completed</span>';
+    const _hi=povHoldInfo(x);
+    if(_hi.cancelled)projBadge=`<span class="badge" style="background:rgba(224,81,138,0.15);color:#e0518a;border:1px solid rgba(224,81,138,0.3);">✕ Cancelled</span>${_hi.cancelDate?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${fmtDate(_hi.cancelDate)}</div>`:''}`;
+    else if(_hi.onHold)projBadge=`<span class="badge bp">⏸ On Hold</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">since ${_hi.holdSince?fmtDate(_hi.holdSince):'—'}</div>`;
+    else if(m.status==='done')projBadge='<span class="badge bg">✓ Completed</span>';
     else if(m.status==='wip')projBadge=`<span class="badge bo">⟳ In Process</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${m.weightedPct}%</div>`;
     else projBadge='<span class="badge bgr">— Pending</span>';
     const escId=projId.replace(/'/g,"\\'");
@@ -2670,11 +2712,10 @@ function buildPMR(){
 
   const head=document.getElementById('pmr-head'),body=document.getElementById('pmr-body');
   const legend=document.getElementById('pmr-legend');
-  if(legend)legend.innerHTML=[
+if(legend)legend.innerHTML=[
     ['pmr-green','Onsite Visit'],['pmr-teal','Without Visit Update'],['pmr-orange','No Activity'],
-    ['pmr-red','No Update'],['pmr-grey','No data / future']
+    ['pmr-red','No Update'],['pmr-hold','On Hold'],['pmr-grey','No data / future']
   ].map(([c,t])=>`<span class="lg"><span class="sw ${c}"></span>${t}</span>`).join('')+
-    '<span class="lg" style="margin-left:auto;">TBT/DPR ✓ = report present in TBT sheet (cols M & N)</span>';
 
   if(!monthVal){head.innerHTML='';body.innerHTML='<tr><td class="empty">No attendance data available</td></tr>';return;}
 
@@ -2770,9 +2811,12 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
       const dt=parseDate(v(r,D_TS_P));
       if(dt)pcDays.add(pmrKey(dt));
     });
+   const _hInfo=povHoldInfo(x);
+    const _dayInHold=(d)=>{if(!_hInfo.holdIntervals.length)return null;const t0=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();for(const iv of _hInfo.holdIntervals){if(!iv.start)continue;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();if(t0>=s&&t0<=e)return iv;}return null;};
     const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
-      const c=pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+      const hv=d<=today?_dayInHold(d):null;
+      const c=hv?{cls:'pmr-hold',label:'On Hold',sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
       const inInstall=pcDays.has(pmrKey(d));
   
       let labelHtml=c.label;
@@ -4957,6 +5001,52 @@ function povShowCityDetail(idx){
     <div class="metrics" style="margin-top:8px;">${cards}</div>
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 6px;">PE Breakdown in ${pemrEsc(s.city)}</div>
     <div class="table-wrap" style="overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>PE</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Rate</th></tr></thead><tbody>${peRows}</tbody></table></div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+function povShowHoldList(kind){
+  const rows=povGetBaseRows();
+  const items=[];
+  rows.forEach(x=>{const h=povHoldInfo(x);if(kind==='cancel'?h.cancelled:h.onHold)items.push({row:x,h});});
+  const title=kind==='cancel'?'Cancelled Projects':'Projects On Hold';
+  const color=kind==='cancel'?'#e0518a':'#9b6dff';
+  const today=new Date();today.setHours(0,0,0,0);
+  const cards=items.length?items.map(({row:x,h})=>{
+    const pid=lv(x,LEAD_COL.PID),name=lv(x,LEAD_COL.PNAME)||pid;
+    const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    const since=kind==='cancel'?h.cancelDate:h.holdSince;
+    const sinceDays=since?Math.round((today-since)/86400000):null;
+    const remark=kind==='cancel'?h.cancelRemark:h.holdRemark;
+    const logHtml=h.events.map(e=>{
+      const c=e.type==='hold'?'#f5a623':e.type==='unhold'?'#34c98a':'#e0518a';
+      const lbl=e.type==='hold'?'Hold':e.type==='unhold'?'Unhold':'Cancelled';
+      return `<div style="font-size:11px;display:flex;gap:8px;align-items:baseline;"><span style="color:${c};font-weight:600;min-width:64px;">${lbl}</span><span>${e.date?fmtDate(e.date):e.raw}</span>${e.remark?`<span style="color:var(--muted);">· ${pemrEsc(e.remark)}</span>`:''}</div>`;
+    }).join('');
+    return `<div class="pemr-card" style="border-left:3px solid ${color};">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:13px;">${pemrEsc(name)}</span>
+        <span style="font-size:10px;color:var(--muted);">${pemrEsc(pid)}</span>
+        <span style="margin-left:auto;font-size:11px;padding:3px 10px;background:${color}26;color:${color};border:1px solid ${color}55;border-radius:12px;font-weight:700;">${kind==='cancel'?'✕ Cancelled':'⏸ On Hold'}${since?' · '+fmtDate(since):''}${sinceDays!==null?` (${sinceDays}d)`:''}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:6px;">
+        <div><span style="color:var(--muted);">City:</span> <b>${pemrEsc(lv(x,LEAD_COL.CITY))||'—'}</b></div>
+        <div><span style="color:var(--muted);">PE:</span> ${pemrEsc(pe)}</div>
+        ${remark?`<div style="grid-column:span 2;"><span style="color:var(--muted);">Remark:</span> <b>${pemrEsc(remark)}</b></div>`:''}
+        ${h.totalHoldDays?`<div style="grid-column:span 2;"><span style="color:var(--muted);">Total hold days:</span> <b>${h.totalHoldDays}d</b></div>`:''}
+      </div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px;">Activity Log</div>
+      <div style="display:flex;flex-direction:column;gap:2px;">${logHtml||'<span style="font-size:11px;color:var(--muted);">—</span>'}</div>
+    </div>`;
+  }).join(''):'<div class="empty">No projects</div>';
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div><div style="font-size:15px;font-weight:600;">${title}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${items.length} project(s) · from Lead Tracker col AO activity log</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
   </div>`;
   ov.style.display='flex';
 }
