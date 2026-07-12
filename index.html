@@ -2716,6 +2716,7 @@ if(legend)legend.innerHTML=[
     ['pmr-green','Onsite Visit'],['pmr-teal','Without Visit Update'],['pmr-orange','No Activity'],
     ['pmr-red','No Update'],['pmr-hold','On Hold'],['pmr-grey','No data / future']
   ].map(([c,t])=>`<span class="lg"><span class="sw ${c}"></span>${t}</span>`).join('')+
+    '<span class="lg" style="margin-left:auto;">TBT/DPR ✓ = report present in TBT sheet (cols M & N) · * = installation completed day</span>';
 
   if(!monthVal){head.innerHTML='';body.innerHTML='<tr><td class="empty">No attendance data available</td></tr>';return;}
 
