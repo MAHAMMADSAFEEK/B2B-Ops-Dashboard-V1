@@ -5015,7 +5015,8 @@ function povShowHoldList(kind){
   const today=new Date();today.setHours(0,0,0,0);
   const cards=items.length?items.map(({row:x,h})=>{
     const pid=lv(x,LEAD_COL.PID),name=lv(x,LEAD_COL.PNAME)||pid;
-    const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    const peRaw=lv(x,LEAD_COL.PE);
+    const pe=peRaw?pemrEsc(peRaw):'<span style="color:#e74c3c;">Not Assigned</span>';
     const since=kind==='cancel'?h.cancelDate:h.holdSince;
     const sinceDays=since?Math.round((today-since)/86400000):null;
     const remark=kind==='cancel'?h.cancelRemark:h.holdRemark;
@@ -5032,7 +5033,7 @@ function povShowHoldList(kind){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:6px;">
         <div><span style="color:var(--muted);">City:</span> <b>${pemrEsc(lv(x,LEAD_COL.CITY))||'—'}</b></div>
-        <div><span style="color:var(--muted);">PE:</span> ${pemrEsc(pe)}</div>
+        <div><span style="color:var(--muted);">PE:</span> ${pe}</div>
         ${remark?`<div style="grid-column:span 2;"><span style="color:var(--muted);">Remark:</span> <b>${pemrEsc(remark)}</b></div>`:''}
         ${h.totalHoldDays?`<div style="grid-column:span 2;"><span style="color:var(--muted);">Total hold days:</span> <b>${h.totalHoldDays}d</b></div>`:''}
       </div>
