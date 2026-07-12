@@ -619,6 +619,18 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 
   <!-- PROJECT MAP TAB -->
   <div id="tab-map" class="tab-content">
+    <div class="pe-filter-bar">
+      <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="pov-ms-city-map"></div></div>
+      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="pov-ms-cluster-map"></div></div>
+      <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="pov-ms-citymgr-map"></div></div>
+      <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="pov-ms-pe-map"></div></div>
+      <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms" id="pov-ms-status-map"></div></div>
+      <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="pov-ms-sizecat-map"></div></div>
+      <div class="pe-filter-group"><label>Project Name</label><div class="pov-ms" id="pov-ms-pname-map"></div></div>
+      <div class="pe-filter-group"><label>Project ID</label><div class="pov-ms" id="pov-ms-pid-map"></div></div>
+      <div class="pe-fdivider"></div>
+      <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearPOVFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
+    </div>
     <div style="padding:16px 24px 24px;">
       <div class="section-title">Project Map <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">Lat-Long from Lead Tracker col J · click a marker for details</span></div>
       <div class="pmr-legend" id="map-legend"></div>
@@ -1765,10 +1777,10 @@ const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),pnam
 
 function buildPOVMSWidget(key){
   const cfg=POV_MS_CFG[key];
-  ['pov-ms-'+key,'pov-ms-'+key+'-prep'].forEach(hostId=>{
+  ['pov-ms-'+key,'pov-ms-'+key+'-prep','pov-ms-'+key+'-map'].forEach(hostId=>{
     const host=document.getElementById(hostId);
     if(!host)return;
-    const suffix=hostId===('pov-ms-'+key)?'':'-prep';
+    const suffix=hostId===('pov-ms-'+key)?'':(hostId.endsWith('-map')?'-map':'-prep');
     host.innerHTML=`
       <div class="pov-ms-control" onclick="togglePOVMS('${key}','${suffix}')">
         <span class="pov-ms-text placeholder" id="pov-ms-text-${key}${suffix}">${cfg.all}</span>
@@ -1788,7 +1800,7 @@ function buildPOVMSWidget(key){
 }
 
 function renderPOVMSOptions(key){
-  ['','-prep'].forEach(suffix=>{
+  ['','-prep','-map'].forEach(suffix=>{
     const box=document.getElementById('pov-ms-options-'+key+suffix);
     if(!box)return;
     const q=((document.getElementById('pov-ms-search-'+key+suffix)||{}).value||'').trim().toLowerCase();
@@ -1811,6 +1823,11 @@ function togglePOVMSOption(key,val){
   updatePOVMSControl(key);
   recomputePOVOptions();
   buildPOV();
+  povMapRefreshIfVisible();
+}
+function povMapRefreshIfVisible(){
+  const t=document.getElementById('tab-map');
+  if(t&&t.classList.contains('active'))setTimeout(()=>{buildProjMap();if(_projMap)_projMap.invalidateSize();},30);
 }
 
 function povRowPassesExcept(x,exceptKey){
@@ -1851,16 +1868,16 @@ function recomputePOVOptions(){
 function selectAllPOVMS(key){
   const q=((document.getElementById('pov-ms-search-'+key)||{}).value||'').trim().toLowerCase();
   _povMSAll[key].filter(o=>!q||o.toLowerCase().includes(q)).forEach(o=>_povMS[key].add(o));
-  updatePOVMSControl(key);recomputePOVOptions();buildPOV();
+  updatePOVMSControl(key);recomputePOVOptions();buildPOV();povMapRefreshIfVisible();
 }
 
 function clearPOVMS(key){
   _povMS[key].clear();
-  updatePOVMSControl(key);recomputePOVOptions();buildPOV();
+  updatePOVMSControl(key);recomputePOVOptions();buildPOV();povMapRefreshIfVisible();
 }
 
 function updatePOVMSControl(key){
-  ['','-prep'].forEach(suffix=>{
+  ['','-prep','-map'].forEach(suffix=>{
     const txt=document.getElementById('pov-ms-text-'+key+suffix);
     if(!txt)return;
     const sel=_povMS[key];
@@ -1888,6 +1905,7 @@ function clearPOVFilters(){
   _povDelayBucket='';
   recomputePOVOptions();
   buildPOV();
+  povMapRefreshIfVisible();
 }
 
 function computeProjectMetrics(projId){
@@ -5342,7 +5360,7 @@ function buildProjMap(){
   _projMapLayer.clearLayers();
   const counts={closed:0,install:0,wip:0,notass:0};let plotted=0,noGeo=0;
   const bounds=[];
-  D.lead.r.forEach(x=>{
+  povGetBaseRows().forEach(x=>{
     const pid=lv(x,LEAD_COL.PID);if(!pid)return;
     const ll=mapParseLatLong(lv(x,9)); // col J = index 9
     if(!ll){noGeo++;return;}
