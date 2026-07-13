@@ -2140,8 +2140,8 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
     citySize[city]=(citySize[city]||0)+size;
     const cat=sizeCategoryOf(x);
     sizeCatCount[cat]=(sizeCatCount[cat]||0)+1;
-    
-if(m.status==='done')completed++;
+    const m=computeProjectMetrics(projId);
+    if(m.status==='done')completed++;
     if(m.installStatus==='done')installCompleted++;
     if(!_isHC){
       if(peAssigned&&m.installStatus!=='done'&&m.status!=='done')inProcess++;
@@ -2179,7 +2179,7 @@ document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,t
     const catCell=`<span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;font-weight:600;">${cat}</span>`;
     const m=computeProjectMetrics(projId);
     let stageBadge;let installBadge;
-    if(m.==='done')installBadge='<span class="badge bg">✓ Completed</span>';
+    if(m.installStatus==='done')installBadge='<span class="badge bg">✓ Completed</span>';
     else if(m.installStatus==='wip')installBadge=`<span class="badge bo">⟳ On Going</span>${m.finalStage&&m.finalStage!=='—'?`<div style="font-size:11px;color:var(--muted);margin-top:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.finalStage.replace(/"/g,'&quot;')}">${m.finalStage}</div>`:''}`;
     else installBadge='<span class="badge bgr">— Pending</span>';
     let projBadge;
