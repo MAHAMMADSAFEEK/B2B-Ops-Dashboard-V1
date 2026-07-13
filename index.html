@@ -2151,17 +2151,19 @@ if(fSizeCat.size&&!fSizeCat.has(sizeCategoryOf(x)))return false;
   });
 
   
-document.getElementById('pov-metrics').innerHTML=
+const _onGoing=inProcess+pending; // assigned & active but installation not done
+  document.getElementById('pov-metrics').innerHTML=
     metric('ti-building-skyscraper','Total Projects',totalProjects,'From Lead Tracker','#4f8ef7')+
     metric('ti-ruler-2','Total Project Size',Math.round(totalSize).toLocaleString(),'Sum of capacity','#9b6dff')+
     metricWithBar('ti-user-off','Not Assigned',notAssigned,`${totalProjects?Math.round(notAssigned/totalProjects*100):0}% of projects`,'#e74c3c',totalProjects?notAssigned/totalProjects*100:0,'#e74c3c')+
     metricWithBar('ti-check','Installation Completed',installCompleted,`${totalProjects?Math.round(installCompleted/totalProjects*100):0}% · Pre-Comm done, O&M pending`,'#34c98a',totalProjects?installCompleted/totalProjects*100:0,'#34c98a')+
     metricWithBar('ti-circle-check','Project Completed',completed,`${totalProjects?Math.round(completed/totalProjects*100):0}% · all workplan done`,'#0d9488',totalProjects?completed/totalProjects*100:0,'#0d9488')+
-    metricWithBar('ti-loader','On Going',inProcess,`${totalProjects?Math.round(inProcess/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?inProcess/totalProjects*100:0,'#f5a623')+
-    metricWithBar('ti-clock','Pending',pending,`${totalProjects?Math.round(pending/totalProjects*100):0}% · assigned, no DPR yet`,'#e74c3c',totalProjects?pending/totalProjects*100:0,'#e74c3c')+
-    (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED LEADS</div><div class="mval">${dl}</div><div class="msub">${totalProjects?Math.round(dl/totalProjects*100):0}% of projects · click for breakdown</div></div>`;})()+
+    metricWithBar('ti-loader','On Going',_onGoing,`${totalProjects?Math.round(_onGoing/totalProjects*100):0}% of projects`,'#f5a623',totalProjects?_onGoing/totalProjects*100:0,'#f5a623')+
     `<div class="metric" style="--mc:#9b6dff;cursor:pointer;" onclick="povShowHoldList('hold')"><div class="micon"><i class="ti ti-player-pause"></i></div><div class="mlbl">ON HOLD</div><div class="mval">${holdCnt}</div><div class="msub">${totalProjects?Math.round(holdCnt/totalProjects*100):0}% of projects · click for list</div></div>`+
-    `<div class="metric" style="--mc:#e0518a;cursor:pointer;" onclick="povShowHoldList('cancel')"><div class="micon"><i class="ti ti-ban"></i></div><div class="mlbl">CANCELLED</div><div class="mval">${cancelCnt}</div><div class="msub">${totalProjects?Math.round(cancelCnt/totalProjects*100):0}% of projects · click for list</div></div>`;
+    `<div class="metric" style="--mc:#e0518a;cursor:pointer;" onclick="povShowHoldList('cancel')"><div class="micon"><i class="ti ti-ban"></i></div><div class="mlbl">CANCELLED</div><div class="mval">${cancelCnt}</div><div class="msub">${totalProjects?Math.round(cancelCnt/totalProjects*100):0}% of projects · click for list</div></div>`+
+    (()=>{let dl=0;rows.forEach(x=>{const d=povComputeDelay(x);if(d&&d.delayBy>0&&!d.isDone)dl++;});return `<div class="metric" style="--mc:#e74c3c;cursor:pointer;" onclick="povShowDelayedLeads()"><div class="micon"><i class="ti ti-alert-triangle"></i></div><div class="mlbl">DELAYED PROJECTS</div><div class="mval">${dl}</div><div class="msub">vs PO timeline · click for breakdown</div></div>`;})()+
+    (()=>{const b=[];POV_UPD_BUCKETS.forEach(k=>{if(['u10','u15','u20','u30','u30p'].includes(k.key))b.push(k.key);});let pb=0;rows.forEach(x=>{const bk=povUpdBucketOf(x);if(b.includes(bk)||bk==='upNever')pb++;});return `<div class="metric" style="--mc:#e8743b;cursor:pointer;" onclick="document.getElementById('pov-delay-report').scrollIntoView({behavior:'smooth',block:'center'})"><div class="micon"><i class="ti ti-clock-exclamation"></i></div><div class="mlbl">PENDING BUCKET</div><div class="mval">${pb}</div><div class="msub">No update 7+ days / never · click to view report</div></div>`;})();
+  
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
 document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,totalProjects);
@@ -4190,7 +4192,7 @@ function buildHRC(){
   const _origBuildPOV=buildPOV;
   buildPOV=function(){_origBuildPOV.apply(this,arguments);povWireDrill();};
 
-  const METRIC_KEYS=['total','size','notassigned','installcompleted','completed','inprocess','pending','delayed'];
+  const METRIC_KEYS=['total','size','notassigned','installcompleted','completed','inprocess'];
 
   function povWireDrill(){
     document.querySelectorAll('#pov-metrics .metric').forEach((c,i)=>{
@@ -4233,8 +4235,8 @@ function buildHRC(){
     else if(key==='installcompleted')rows=rows.filter(x=>{if(!_notHC(x)||!lv(x,LEAD_COL.PE))return false;const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.installStatus==='done'&&m.status!=='done';});
     else if(key==='completed')   rows=rows.filter(x=>_notHC(x)&&lv(x,LEAD_COL.PE)&&computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done');
     else if(key==='delayed')     rows=rows.filter(x=>{const d=povComputeDelay(x);return d&&d.delayBy>0&&!d.isDone;});
-    else if(key==='inprocess')   rows=rows.filter(x=>{if(!_notHC(x)||!lv(x,LEAD_COL.PE))return false;const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.status==='wip'&&m.installStatus!=='done';});
-    else if(key==='pending')     rows=rows.filter(x=>_notHC(x)&&lv(x,LEAD_COL.PE)&&computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='pending');
+    else if(key==='inprocess')   rows=rows.filter(x=>{if(!_notHC(x)||!lv(x,LEAD_COL.PE))return false;const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.status!=='done'&&m.installStatus!=='done';});
+    else if(key==='pending')     rows=rows.filter(x=>{if(!_notHC(x)||!lv(x,LEAD_COL.PE))return false;const m=computeProjectMetrics(lv(x,LEAD_COL.PID));return m.status!=='done'&&m.installStatus!=='done';});
     else if(key.startsWith('city:'))  rows=rows.filter(x=>lv(x,LEAD_COL.CITY)===key.slice(5));
     else if(key.startsWith('size:'))  rows=rows.filter(x=>sizeCategoryOf(x)===key.slice(5));
     else if(key.startsWith('bucket:'))rows=rows.filter(x=>povUpdBucketOf(x)===key.slice(7));
