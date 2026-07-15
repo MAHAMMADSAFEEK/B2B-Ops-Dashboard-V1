@@ -1795,11 +1795,12 @@ const POV_MS_CFG={
   status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES},
   sizecat: {col:null,      all:'All Sizes',      ph:'Search size…',   fixed:SIZE_CATEGORIES},
   pname:   {col:'PNAME',   all:'All Projects',   ph:'Search project name…'},
-  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'}
+  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'},
+  aging:   {col:null,      all:'All Aging',      ph:'Search aging…',  fixed:AGING_LABELS}
 };
 
 
-let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set(),pname:new Set(),pid:new Set()};
+let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set(),pname:new Set(),pid:new Set(),aging:new Set()};
 let _povMSAll={city:[],cluster:[],citymgr:[],pe:[],sizecat:SIZE_CATEGORIES.slice(),status:POV_STATUSES.slice(),pname:[],pid:[],aging:AGING_LABELS.slice()};
 let _povMSCounts={city:{},cluster:{},citymgr:{},pe:{},sizecat:{},status:{},pname:{},pid:{},aging:{}};
 
@@ -2534,10 +2535,9 @@ const PMR_MS_CFG={
   pe:      {col:'PE',      all:'All PEs',        ph:'Search PEs…'},
   status:  {col:null,      all:'All Statuses',   ph:'Search status…', fixed:POV_STATUSES},
   pname:   {col:'PNAME',   all:'All Projects',   ph:'Search project name…'},
-  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'},
-  aging:   {col:null,      all:'All Aging',      ph:'Search aging…',  fixed:AGING_LABELS}
+  pid:     {col:'PID',     all:'All Project IDs',ph:'Search project ID…'}
 };
-let _povMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),sizecat:new Set(),status:new Set(),pname:new Set(),pid:new Set(),aging:new Set()};
+let _pmrMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set(),pname:new Set(),pid:new Set()};
 let _pmrMSAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice(),pname:[],pid:[]};
 let _pmrMSCounts={city:{},cluster:{},citymgr:{},pe:{},status:{},pname:{},pid:{}};
 
