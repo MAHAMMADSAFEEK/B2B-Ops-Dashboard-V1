@@ -1769,6 +1769,9 @@ function povNum(s){if(!s)return 0;const n=parseFloat(String(s).replace(/[^0-9.\-
 const POV_STATUSES=['Not Assigned','Installation On Going','Installation Completed But O&M pending','Project Closed','On Hold','Cancelled'];
 const AGING_LABELS=['Today updated','Yesterday updated','3–5 days','5–7 days','7–10 days','10–15 days','15–20 days','20–30 days','30+ days','Never updated'];
 function povAgingOf(x){
+  const h=povHoldInfo(x);
+  if(h.onHold||h.cancelled)return '';
+  if(!lv(x,LEAD_COL.PE))return '';
   const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
   if(m.status==='done')return '';
   if(!m.lastAttDate)return 'Never updated';
