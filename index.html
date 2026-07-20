@@ -3198,10 +3198,13 @@ function pemrDateExpandAll(){
 function pemrDateCollapseAll(){ _pemrDateExp.clear(); if(_pemrDateDk) pemrShowDateSummary(_pemrDateDk); }
 
   let _pemrDateView='hier';
+  let _pemrDateCardF='';   // ''|'upd'|'leave'|'weekoff'|'pending'
+function pemrDateSetCardF(f){_pemrDateCardF=(_pemrDateCardF===f)?'':f;if(_pemrDateDk)pemrShowDateSummary(_pemrDateDk);}
 function pemrDateSetView(v){_pemrDateView=v;if(_pemrDateDk)pemrShowDateSummary(_pemrDateDk);}
 
 function pemrShowDateSummary(dk){
   const ctx=_pemrCtx; if(!ctx||!ctx.attByPD) return;
+  if(_pemrDateDk!==dk)_pemrDateCardF='';
   _pemrDateDk=dk;
   const [y,m,d]=dk.split('-').map(Number);
   const dateLabel=new Date(y,m-1,d).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
@@ -3232,26 +3235,33 @@ function pemrShowDateSummary(dk){
     peStats[pe]=st;
   });
 
- let peUpd=0,pePend=0;
+ let peUpd=0,peFull=0,pePart=0,pePend=0,peLeave=0,peWO=0;
+  const peCat={};
   pes.forEach(pe=>{
     const st=peStats[pe];
-    if(st.onLeave)return;
-    if(st.total===0)return;
-    if(st.updated>0)peUpd++;else pePend++;
+    const lv=(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].get)?(ctx.leavesByPE[pe].get(dk)||''):'';
+    if(st.onLeave){if(String(lv).toLowerCase().indexOf('week')>=0){peWO++;peCat[pe]='weekoff';}else{peLeave++;peCat[pe]='leave';}return;}
+    if(st.total===0){peCat[pe]='none';return;}
+    if(st.updated>0){peUpd++;if(st.updated>=st.total)peFull++;else pePart++;peCat[pe]='upd';}
+    else{pePend++;peCat[pe]='pending';}
   });
   const peActive=peUpd+pePend;
+  const selCard=(key)=>_pemrDateCardF===key?'outline:2px solid var(--accent);':'';
+  const cardBtn=(key,inner)=>`<div onclick="pemrDateSetCardF('${key}')" style="cursor:pointer;${selCard(key)}border-radius:16px;">${inner}</div>`;
   const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
-    metricWithBar('ti-user-check','PEs Updated',peUpd,`${peActive?Math.round(peUpd/peActive*100):0}% of active PEs`,'#34c98a',peActive?peUpd/peActive*100:0,'#34c98a')+
-    metric('ti-beach','On Leave',gOnLeave,'PEs','#3bc0d8')+
-    metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c');
-
+    cardBtn('upd',metricWithBar('ti-user-check','PEs Updated',peUpd,`Full ${peFull} · Partial ${pePart} · ${peActive?Math.round(peUpd/peActive*100):0}%`,'#34c98a',peActive?peUpd/peActive*100:0,'#34c98a'))+
+    cardBtn('leave',metric('ti-beach','On Leave',peLeave,'PEs','#3bc0d8'))+
+    cardBtn('weekoff',metric('ti-calendar-off','Week-Off',peWO,'PEs','#9b6dff'))+
+    cardBtn('pending',metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c'));
+  const pesView=_pemrDateCardF?pes.filter(pe=>peCat[pe]===_pemrDateCardF):pes;
   const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  
 
   // ── HIERARCHY VIEW ──
   function renderHier(){
-    const tree={};
-    pes.forEach(pe=>{
+   const tree={};
+    pesView.forEach(pe=>{
       const c=ctx.peClusterMap[pe]||'(No Cluster)';
       const cm=ctx.peCityMgrMap[pe]||'(No City Manager)';
       if(!tree[c]) tree[c]={};
@@ -3315,7 +3325,7 @@ function pemrShowDateSummary(dk){
 
   // ── PE-WISE FLAT VIEW ──
   function renderFlat(){
-    const rows=pes.map(pe=>{
+    const rows=pesView.map(pe=>{
       const st=peStats[pe]||{total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave:false};
       let statusKey='none';
       if(st.onLeave)statusKey='leave';
