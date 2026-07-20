@@ -198,6 +198,8 @@ tr:hover td{background:var(--surface2);}
 .pmr-teal{background:rgba(56,178,210,.16);color:#3bc0d8;}
 .pmr-grey{background:rgba(139,146,176,.14);color:#8b92b0;}
 .pmr-hold{background:rgba(155,109,255,.18);color:#b79cff;border:1px dashed rgba(155,109,255,.5);}
+  @keyframes pmrClosedBlink{0%,100%{background:rgba(29,78,216,.28);}50%{background:rgba(29,78,216,.55);}}
+.pmr-closed{background:rgba(29,78,216,.35);color:#93b4ff;border:1px solid rgba(79,142,247,.5);animation:pmrClosedBlink 1.6s ease-in-out infinite;font-weight:600;}
 .pmr-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;}
 .pmr-modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;max-width:440px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
 .pemr-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
@@ -2885,10 +2887,20 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
       const dt=parseDate(v(r,D_TS_P));
       if(dt)pcDays.add(pmrKey(dt));
     });
+
+// Project completion date: latest DPR date if project fully done
+    const _pm=computeProjectMetrics(pid);
+    let _closedMs=null;
+    if(_pm.status==='done'&&_pm.lastDate){const cd=_pm.lastDate;_closedMs=new Date(cd.getFullYear(),cd.getMonth(),cd.getDate()).getTime();}
+    
    const _hInfo=povHoldInfo(x);
     const _dayInHold=(d)=>{if(!_hInfo.holdIntervals.length)return null;const t0=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();for(const iv of _hInfo.holdIntervals){if(!iv.start)continue;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();if(t0>=s&&t0<=e)return iv;}return null;};
     const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
+      const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+      if(_closedMs!==null&&dMs>_closedMs&&d<=today){
+        return `<td><div class="pmr-cell pmr-closed">Project Closed</div></td>`;
+      }
       const hv=d<=today?_dayInHold(d):null;
       const c=hv?{cls:'pmr-hold',label:'On Hold',sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
       const inInstall=pcDays.has(pmrKey(d));
