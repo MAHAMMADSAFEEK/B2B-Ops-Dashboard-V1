@@ -2893,16 +2893,26 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
     let _closedMs=null;
     if(_pm.status==='done'&&_pm.lastDate){const cd=_pm.lastDate;_closedMs=new Date(cd.getFullYear(),cd.getMonth(),cd.getDate()).getTime();}
     
-   const _hInfo=povHoldInfo(x);
+   // Project completion marker: latest attendance date if project fully done
+    const _pm=computeProjectMetrics(pid);
+    let _closedMs=null;
+    if(_pm.status==='done'&&_pm.lastAttDate){const cd=_pm.lastAttDate;_closedMs=new Date(cd.getFullYear(),cd.getMonth(),cd.getDate()).getTime();}
+    
+  const _hInfo=povHoldInfo(x);
     const _dayInHold=(d)=>{if(!_hInfo.holdIntervals.length)return null;const t0=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();for(const iv of _hInfo.holdIntervals){if(!iv.start)continue;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();if(t0>=s&&t0<=e)return iv;}return null;};
+    
     const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
       const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
-      if(_closedMs!==null&&dMs>_closedMs&&d<=today){
-        return `<td><div class="pmr-cell pmr-closed">Project Closed</div></td>`;
+      if(_closedMs!==null&&dMs===_closedMs){
+        return `<td><div class="pmr-cell pmr-closed" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">Project Closed</div></td>`;
+      }
+      if(_closedMs!==null&&dMs>_closedMs){
+        return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       }
       const hv=d<=today?_dayInHold(d):null;
       const c=hv?{cls:'pmr-hold',label:'On Hold',sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+      
       const inInstall=pcDays.has(pmrKey(d));
   
       let labelHtml=c.label;
