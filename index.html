@@ -2887,11 +2887,6 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
       const dt=parseDate(v(r,D_TS_P));
       if(dt)pcDays.add(pmrKey(dt));
     });
-
-// Project completion date: latest DPR date if project fully done
-    const _pm=computeProjectMetrics(pid);
-    let _closedMs=null;
-    if(_pm.status==='done'&&_pm.lastDate){const cd=_pm.lastDate;_closedMs=new Date(cd.getFullYear(),cd.getMonth(),cd.getDate()).getTime();}
     
    // Project completion marker: latest attendance date if project fully done
     const _pm=computeProjectMetrics(pid);
