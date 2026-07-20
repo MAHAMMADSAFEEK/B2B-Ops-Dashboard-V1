@@ -3232,15 +3232,19 @@ function pemrShowDateSummary(dk){
     peStats[pe]=st;
   });
 
+ let peUpd=0,pePend=0;
+  pes.forEach(pe=>{
+    const st=peStats[pe];
+    if(st.onLeave)return;
+    if(st.total===0)return;
+    if(st.updated>0)peUpd++;else pePend++;
+  });
+  const peActive=peUpd+pePend;
   const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
-    metric('ti-briefcase','Total Projects',gTotal,'Across all PEs','#9b6dff')+
-    metricWithBar('ti-calendar-check','Updated',gUpd,`${gTotal?Math.round(gUpd/gTotal*100):0}% project-days`,'#34c98a',gTotal?gUpd/gTotal*100:0,'#34c98a')+
-    metricWithBar('ti-calendar-x','Pending',gPend,`${gTotal?Math.round(gPend/gTotal*100):0}% project-days`,'#e74c3c',gTotal?gPend/gTotal*100:0,'#e74c3c')+
-    metric('ti-map-pin','Onsite Visit',gOn,'Project-days','#34c98a')+
-    metric('ti-clipboard','Without Visit Update',gWo,'Project-days','#3bc0d8')+
-    metric('ti-alert-triangle','No Activity',gNa,'Project-days','#f5a623')+
-    metric('ti-beach','On Leave',gOnLeave,'PEs','#3bc0d8');
+    metricWithBar('ti-user-check','PEs Updated',peUpd,`${peActive?Math.round(peUpd/peActive*100):0}% of active PEs`,'#34c98a',peActive?peUpd/peActive*100:0,'#34c98a')+
+    metric('ti-beach','On Leave',gOnLeave,'PEs','#3bc0d8')+
+    metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c');
 
   const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
 
