@@ -1771,9 +1771,9 @@ const AGING_LABELS=['Today updated','Yesterday updated','3–5 days','5–7 days
 function povAgingOf(x){
   const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
   if(m.status==='done')return '';
-  if(!m.lastActivity)return 'Never updated';
+  if(!m.lastAttDate)return 'Never updated';
   const t=new Date();t.setHours(0,0,0,0);
-  const la=new Date(m.lastActivity);la.setHours(0,0,0,0);
+  const la=new Date(m.lastAttDate);la.setHours(0,0,0,0);
   const d=Math.floor((t-la)/86400000);
   if(d<=0)return 'Today updated';
   if(d===1)return 'Yesterday updated';
