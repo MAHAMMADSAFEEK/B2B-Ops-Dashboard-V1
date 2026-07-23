@@ -456,8 +456,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
   <!-- NOT UPDATED REPORT TAB -->
   <div id="tab-nur" class="tab-content">
     <div class="pe-filter-bar">
-      <div class="pe-filter-group"><label>Date</label><input type="date" id="nur-f-date" onchange="buildNUR()"/></div>
-      <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="nur-ms-cluster"></div></div>
+     <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="nur-ms-cluster"></div></div>
       <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="nur-ms-citymgr"></div></div>
       <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="nur-ms-pe"></div></div>
       <div class="pe-fdivider"></div>
@@ -5626,11 +5625,6 @@ let _nurMSAll={cluster:[],citymgr:[],pe:[]};
 let _nurMSCounts={cluster:{},citymgr:{},pe:{}};
 
 function populateNURFilters(){
-  const dInput=document.getElementById('nur-f-date');
-  if(dInput&&!dInput.value){
-    const t=new Date();
-    dInput.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-  }
   const sets={cluster:new Set(),citymgr:new Set(),pe:new Set()};
   D.lead.r.forEach(x=>{
     if(!lv(x,LEAD_COL.PID))return;
@@ -5692,18 +5686,12 @@ function updateNURMSControl(key){const txt=document.getElementById('nur-ms-text-
 function toggleNURMS(key){const host=document.getElementById('nur-ms-'+key);if(!host)return;const wasOpen=host.classList.contains('open');document.querySelectorAll('.pov-ms.open').forEach(el=>el.classList.remove('open'));if(!wasOpen){host.classList.add('open');const s=document.getElementById('nur-ms-search-'+key);if(s){s.value='';renderNURMSOptions(key);setTimeout(()=>s.focus(),0);}}}
 function clearNURFilters(){
   Object.keys(_nurMS).forEach(k=>{_nurMS[k].clear();updateNURMSControl(k);});
-  const dInput=document.getElementById('nur-f-date');
-  if(dInput){const t=new Date();dInput.value=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}
   recomputeNUROptions();buildNUR();
 }
 
 let _nurRows=[];
 function nurComputeRows(){
-  const dInput=document.getElementById('nur-f-date');
-  const dateVal=dInput?dInput.value:'';
-  if(!dateVal)return[];
-  const [yy,mm,dd]=dateVal.split('-').map(Number);
-  const target=new Date(yy,mm-1,dd);target.setHours(0,0,0,0);
+  const target=new Date();target.setHours(0,0,0,0);target.setDate(target.getDate()-1); // Yesterday
 
   const attByPid={};      // pid -> attendance rows ON target date
   const attAllByPid={};   // pid -> all attendance rows up to & including target date (for historical last-updated)
@@ -5868,7 +5856,8 @@ function nurDownloadCSV(){
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  const dateVal=(document.getElementById('nur-f-date')||{}).value||'report';
+  const y=new Date();y.setDate(y.getDate()-1);
+  const dateVal=y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0');
   a.href=url;a.download=`Not_Updated_Report_${dateVal}.csv`;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(url);
