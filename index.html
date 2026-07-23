@@ -1697,27 +1697,29 @@ function povParseHoldDate(s){
   if(m){const d=new Date(`${m[2]} ${m[1]}, ${m[3]}`);if(!isNaN(d))return d;}
   return parseDate(s);
 }
-function povHoldInfoAsOf(x,asOfDate){
+function povHoldInfo(x){
   const log=lv(x,LEAD_COL.HOLDLOG);
-  const res={onHold:false,cancelled:false};
+  const res={events:[],onHold:false,cancelled:false,holdIntervals:[],holdSince:null,holdRemark:'',cancelDate:null,cancelRemark:'',totalHoldDays:0};
   if(!log)return res;
   const re=/(unhold|hold|cancel(?:led)?)\s+on\s+(\d{1,2}-[A-Za-z]{3,9}-\d{4})(?:\s*-\s*([^\n]*?))?(?=\s*(?:unhold|hold|cancel(?:led)?)\s+on|\s*$)/gi;
-  let m;const events=[];
+  let m;
   while((m=re.exec(log))!==null){
     const t=m[1].toLowerCase();
-    const d=povParseHoldDate(m[2]);
-    if(!d||d.getTime()>asOfDate.getTime())continue; // ignore events after the target date
-    events.push({type:t.startsWith('cancel')?'cancel':t==='unhold'?'unhold':'hold',date:d});
+    res.events.push({type:t.startsWith('cancel')?'cancel':t==='unhold'?'unhold':'hold',date:povParseHoldDate(m[2]),raw:m[2],remark:(m[3]||'').trim()});
   }
-  if(!events.length)return res;
-  events.sort((a,b)=>a.date-b.date);
-  let onHold=false,cancelled=false;
-  events.forEach(e=>{
-    if(e.type==='hold')onHold=true;
-    else if(e.type==='unhold')onHold=false;
-    else if(e.type==='cancel'){cancelled=true;onHold=false;}
+  if(!res.events.length)return res;
+  const today=new Date();today.setHours(0,0,0,0);
+  let open=null;
+  res.events.forEach(e=>{
+    if(e.type==='hold'){if(!open)open={start:e.date,end:null,remark:e.remark};}
+    else if(e.type==='unhold'){if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}}
+    else if(e.type==='cancel'){
+      if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}
+      res.cancelled=true;res.cancelDate=e.date;res.cancelRemark=e.remark;
+    }
   });
-  res.onHold=onHold;res.cancelled=cancelled;
+  if(open){res.holdIntervals.push(open);res.onHold=!res.cancelled;res.holdSince=open.start;res.holdRemark=open.remark;}
+  res.holdIntervals.forEach(iv=>{if(iv.start){const end=iv.end||today;res.totalHoldDays+=Math.max(0,Math.round((end-iv.start)/86400000));}});
   return res;
 }
 
@@ -5746,9 +5748,9 @@ function nurComputeRows(){
   const pr=mm2=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm2]||(mm2?1:0);
   const rows=[];
   D.lead.r.forEach(x=>{
-if(!nurRowPassesExcept(x,null))return;
+    if(!nurRowPassesExcept(x,null))return;
     const pid=lv(x,LEAD_COL.PID);if(!pid)return;
-    const h=povHoldInfoAsOf(x,target);if(h.onHold||h.cancelled)return;
+    const h=povHoldInfo(x);if(h.onHold||h.cancelled)return;
     if(!lv(x,LEAD_COL.PE))return;
 
     const arows=attByPid[pid];
