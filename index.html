@@ -5703,16 +5703,59 @@ function nurComputeRows(){
   const dateVal=dInput?dInput.value:'';
   if(!dateVal)return[];
   const [yy,mm,dd]=dateVal.split('-').map(Number);
-  const target=new Date(yy,mm-1,dd);
-  const dk=target.getFullYear()+'-'+(target.getMonth()+1)+'-'+target.getDate(); // matches pmrKey format
+  const target=new Date(yy,mm-1,dd);target.setHours(0,0,0,0);
 
-  const attByPid={};
+  const attByPid={};      // pid -> attendance rows ON target date
+  const attAllByPid={};   // pid -> all attendance rows up to & including target date (for historical last-updated)
   D.att.r.forEach(x=>{
     const pid=v(x,ATT_COL.PID);const d=parseDate(v(x,ATT_COL.DATE));
     if(!pid||!d)return;
-    if(d.getFullYear()!==yy||d.getMonth()!==mm-1||d.getDate()!==dd)return;
-    (attByPid[pid]=attByPid[pid]||[]).push(x);
+    const d0=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    if(d0.getTime()>target.getTime())return; // ignore future-of-target rows entirely
+    if(d0.getTime()===target.getTime())(attByPid[pid]=attByPid[pid]||[]).push(x);
+    (attAllByPid[pid]=attAllByPid[pid]||[]).push({row:x,date:d0});
   });
+
+  // DPR rows up to target date, for historical "last workflow status"
+  const dh=D.dpr.h;
+  const D_UID=ci(dh,'UniqueID','unique'),D_CID=ci(dh,'ChildID','child'),D_PLAN=ci(dh,'WorkPlan','plan','work'),D_TASK=ci(dh,'CompletedTask','completed task'),D_PCT=ci(dh,'%','completion','percent'),D_TS=ci(dh,'Timestamp','time');
+  const ah=D.att.h;
+  const A_UID=ci(ah,'UniqueID','unique id'),A_PID=ci(ah,'ProjectID','project id');
+  const uidsByPid={};
+  D.att.r.forEach(x=>{const pid=v(x,A_PID),uid=v(x,A_UID);if(pid&&uid)(uidsByPid[pid]=uidsByPid[pid]||new Set()).add(uid);});
+  const dprByPidUpToTarget={};
+  D.dpr.r.forEach(r=>{
+    const d=parseDate(v(r,D_TS));if(!d)return;
+    const d0=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    if(d0.getTime()>target.getTime())return;
+    const uid=v(r,D_UID),cid=v(r,D_CID);
+    let pid='';
+    for(const p in uidsByPid){if(uidsByPid[p].has(uid)){pid=p;break;}}
+    if(!pid){
+      D.lead.r.some(x=>{const lp=lv(x,LEAD_COL.PID);if(lp&&cid.startsWith(lp)){pid=lp;return true;}return false;});
+    }
+    if(!pid)return;
+    (dprByPidUpToTarget[pid]=dprByPidUpToTarget[pid]||[]).push({row:r,date:d0});
+  });
+
+  function historicalPhase(pid){
+    const list=dprByPidUpToTarget[pid];
+    if(!list||!list.length)return 'Not started';
+    const norm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    const byPlan={};
+    list.forEach(({row,date})=>{const p=v(row,D_PLAN);if(!p)return;(byPlan[p]=byPlan[p]||[]).push({row,date});});
+    let latestWip=null,latestWipDate=null;
+    Object.entries(byPlan).forEach(([plan,items])=>{
+      const sorted=[...items].sort((a,b)=>a.date-b.date);
+      const latest=sorted[sorted.length-1];
+      const done=items.some(({row})=>{const p=parseFloat(v(row,D_PCT))||0;const t=String(v(row,D_TASK)||'').toLowerCase();return t.includes('complet')||p>=100;});
+      if(!done){if(!latestWipDate||latest.date>latestWipDate){latestWipDate=latest.date;latestWip=plan;}}
+    });
+    if(latestWip)return latestWip;
+    let lastPlan='',lastDate=null;
+    Object.entries(byPlan).forEach(([plan,items])=>{items.forEach(({date})=>{if(!lastDate||date>lastDate){lastDate=date;lastPlan=plan;}});});
+    return lastPlan||'—';
+  }
 
   const pr=mm2=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm2]||(mm2?1:0);
   const rows=[];
@@ -5720,9 +5763,7 @@ function nurComputeRows(){
     if(!nurRowPassesExcept(x,null))return;
     const pid=lv(x,LEAD_COL.PID);if(!pid)return;
     const h=povHoldInfo(x);if(h.onHold||h.cancelled)return;
-    if(!lv(x,LEAD_COL.PE))return; // no PE assigned → not tracked here
-    const m=computeProjectMetrics(pid);
-    if(m.status==='done')return; // completed, no update needed
+    if(!lv(x,LEAD_COL.PE))return;
 
     const arows=attByPid[pid];
     let status=null,remark='';
@@ -5732,10 +5773,18 @@ function nurComputeRows(){
       let chosen=null,mNorm='';
       arows.forEach(r=>{const mm2=v(r,ATT_COL.M).toLowerCase();if(!chosen||pr(mm2)>pr(mNorm)){chosen=r;mNorm=mm2;}});
       if(mNorm==='no activity'){status='No Activity';remark=v(chosen,ATT_COL.REMARK);}
-      else return; // onsite/without visit update = they updated → exclude
+      else return; // updated (onsite/without visit) on target date → exclude
     }
 
-    const phase=povGetCurrentPhase(pid);
+    // Historical "last updated on" = latest attendance date <= target, excluding target itself if it's the flagged day
+    const priorDates=(attAllByPid[pid]||[]).map(a=>a.date).filter(d0=>d0.getTime()<target.getTime());
+    const lastUpdatedDate=priorDates.length?new Date(Math.max(...priorDates)):null;
+    const agingDays=lastUpdatedDate?Math.floor((target-lastUpdatedDate)/86400000):null;
+    const agingLabel=lastUpdatedDate===null?'Never updated':
+      agingDays<=0?'Today updated':agingDays===1?'Yesterday updated':
+      agingDays<=5?'3–5 days':agingDays<=7?'5–7 days':agingDays<=10?'7–10 days':
+      agingDays<=15?'10–15 days':agingDays<=20?'15–20 days':agingDays<=30?'20–30 days':'30+ days';
+
     rows.push({
       pid,
       pname:lv(x,LEAD_COL.PNAME)||pid,
@@ -5743,11 +5792,11 @@ function nurComputeRows(){
       cluster:lv(x,LEAD_COL.CLUSTER)||'—',
       citymgr:lv(x,LEAD_COL.CITYMGR)||'—',
       pe:lv(x,LEAD_COL.PE)||'—',
-      lastUpdated:m.lastAttDate?fmtDate(m.lastAttDate):'—',
+      lastUpdated:lastUpdatedDate?fmtDate(lastUpdatedDate):'—',
       status,
       remark:remark||'—',
-      aging:povAgingOf(x)||'—',
-      lastWorkflow:phase.phase||'—'
+      aging:agingLabel,
+      lastWorkflow:historicalPhase(pid)
     });
   });
   return rows;
