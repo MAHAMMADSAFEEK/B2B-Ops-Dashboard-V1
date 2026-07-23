@@ -5727,6 +5727,7 @@ function buildNUR(){
   const rows=D.lead.r.filter(x=>{
     if(!lv(x,LEAD_COL.PID))return false;
     if(!nurRowPassesExcept(x,null))return false;
+    if(!lv(x,LEAD_COL.PE))return false;
     const h=povHoldInfo(x);
     if(h.onHold||h.cancelled)return false;
     const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
