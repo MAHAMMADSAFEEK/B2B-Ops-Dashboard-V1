@@ -5807,6 +5807,7 @@ function buildNUR(){
 }
 
 function nurDownloadCSV(){
+  buildNUR();
   if(!_nurRows.length){alert('No data to download for this date.');return;}
   const cols=['Project ID','Project Name','City','Cluster Head','City Manager','PE','Last Updated On','Status','Remarks','Aging','Last Workflow Status'];
   const esc=(v)=>{const s=String(v==null?'':v).replace(/"/g,'""');return /[",\n]/.test(s)?`"${s}"`:s;};
