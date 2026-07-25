@@ -402,6 +402,11 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
         <div class="card-title"><i class="ti ti-clock-exclamation"></i> Project Delay Aging Report</div>
         <div id="pov-delay-aging"></div>
       </div>
+
+  <div class="card">
+        <div class="card-title"><i class="ti ti-stack-2"></i> Project Stage Status</div>
+        <div id="pov-stage-status"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -4653,6 +4658,7 @@ function povRenderExtraReports(){
   povRenderInstMatrix(rows);
   povRenderProjMatrix(rows);
   povRenderDelayAging(rows);
+  povRenderStageStatus(rows);
   povRenderTopPE(rows);
   povRenderTopCity(rows);
 povRenderPhaseTAT(rows);
@@ -4927,6 +4933,73 @@ function povComputeDelay(x){
   const projTat=Math.ceil((endRef-poStart)/86400000)+1;
   const delayBy=projTat-poDays;
   return{delayBy,projTat,poDays,m,poStart,isDone:m.status==='done'};
+}
+
+
+  const STAGE_STATUS_ORDER=['Not Assigned','Vendor Not Finalized','Installation On Going','Installation Completed But O&M pending','Project Closed','On Hold','Cancelled'];
+const STAGE_STATUS_COLORS={
+  'Not Assigned':'#e74c3c','Vendor Not Finalized':'#8b92b0','Installation On Going':'#f5a623',
+  'Installation Completed But O&M pending':'#3bc0d8','Project Closed':'#0d9488','On Hold':'#9b6dff','Cancelled':'#e0518a'
+};
+const STAGE_STATUS_ICONS={
+  'Not Assigned':'ti-user-off','Vendor Not Finalized':'ti-file-off','Installation On Going':'ti-loader',
+  'Installation Completed But O&M pending':'ti-transfer','Project Closed':'ti-circle-check','On Hold':'ti-player-pause','Cancelled':'ti-ban'
+};
+function povRenderStageStatus(rows){
+  const host=document.getElementById('pov-stage-status');if(!host)return;
+  const total=rows.length;
+  if(!total){host.innerHTML='<div class="empty">No data</div>';return;}
+  const counts={};STAGE_STATUS_ORDER.forEach(s=>counts[s]=0);
+  window._povStageRows={};STAGE_STATUS_ORDER.forEach(s=>window._povStageRows[s]=[]);
+  rows.forEach(x=>{
+    const tags=povProjectStatuses(x);
+    const st=tags[0];
+    if(counts[st]===undefined){counts[st]=0;window._povStageRows[st]=[];}
+    counts[st]++;
+    window._povStageRows[st].push(x);
+  });
+  const rowsHtml=STAGE_STATUS_ORDER.filter(s=>counts[s]>0).map(s=>{
+    const n=counts[s],pct=Math.round(n/total*100),color=STAGE_STATUS_COLORS[s]||'#8b92b0',icon=STAGE_STATUS_ICONS[s]||'ti-circle';
+    return `<tr onclick="povShowStageDetail('${s.replace(/'/g,"\\'")}')" style="cursor:pointer;">
+      <td style="width:1%;padding:6px 4px;"><i class="ti ${icon}" style="color:${color};font-size:15px;"></i></td>
+      <td style="font-size:12px;padding:6px 4px;">${s}</td>
+      <td style="text-align:right;font-size:13px;font-weight:600;color:${color};white-space:nowrap;padding:6px 4px;">${n}</td>
+      <td style="text-align:right;font-size:11px;color:var(--muted);white-space:nowrap;padding:6px 4px;">${pct}%</td>
+      <td style="min-width:110px;padding:6px 4px;"><div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div></td>
+    </tr>`;
+  }).join('');
+  host.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${total} project(s) in current view. Click a row for project list.</div><table style="font-size:12px;width:100%;"><tbody>${rowsHtml}</tbody></table>`;
+}
+function povShowStageDetail(stage){
+  const items=(window._povStageRows||{})[stage]||[];
+  if(!items.length)return;
+  const color=STAGE_STATUS_COLORS[stage]||'#8b92b0';
+  const cards=items.map(x=>{
+    const pid=lv(x,LEAD_COL.PID),name=lv(x,LEAD_COL.PNAME)||pid;
+    const pe=lv(x,LEAD_COL.PE)||'<span style="color:#e74c3c;">Not Assigned</span>';
+    const city=lv(x,LEAD_COL.CITY)||'—';
+    const escId=pid.replace(/'/g,"\\'"),escName=name.replace(/'/g,"\\'");
+    return `<div class="pemr-card" style="border-left:3px solid ${color};">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+        <span onclick="openProjectSummaryFor('${escId}','${escName}')" style="font-weight:600;font-size:13px;cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;">${pemrEsc(name)}</span>
+        <span style="font-size:10px;color:var(--muted);">${pemrEsc(pid)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        <div><span style="color:var(--muted);">City:</span> <b>${pemrEsc(city)}</b></div>
+        <div><span style="color:var(--muted);">PE:</span> ${pe}</div>
+      </div>
+    </div>`;
+  }).join('');
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:720px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div><div style="font-size:15px;font-weight:600;">${pemrEsc(stage)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${items.length} project(s)</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${cards}</div>
+  </div>`;
+  ov.style.display='flex';
 }
 
 function povRenderDelayAging(rows){
