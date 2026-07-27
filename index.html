@@ -2265,10 +2265,12 @@ document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,t
     if(m.installStatus==='done')installBadge='<span class="badge bg">✓ Completed</span>';
     else if(m.installStatus==='wip')installBadge=`<span class="badge bo">⟳ On Going</span>${m.finalStage&&m.finalStage!=='—'?`<div style="font-size:11px;color:var(--muted);margin-top:4px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.finalStage.replace(/"/g,'&quot;')}">${m.finalStage}</div>`:''}`;
     else installBadge='<span class="badge bgr">— Pending</span>';
-    let projBadge;
+let projBadge;
     const _hi=povHoldInfo(x);
     if(_hi.cancelled)projBadge=`<span class="badge" style="background:rgba(224,81,138,0.15);color:#e0518a;border:1px solid rgba(224,81,138,0.3);">✕ Cancelled</span>${_hi.cancelDate?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${fmtDate(_hi.cancelDate)}</div>`:''}`;
     else if(_hi.onHold)projBadge=`<span class="badge bp">⏸ On Hold</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">since ${_hi.holdSince?fmtDate(_hi.holdSince):'—'}</div>`;
+    else if(!peVal)projBadge='<span class="badge br">— Not Assigned</span>';
+    else if(!vendorFinalizeDate(x))projBadge='<span class="badge bgr" style="background:rgba(139,146,176,0.15);color:#8b92b0;border:1px solid rgba(139,146,176,0.3);">⏳ Vendor Not Finalized</span>';
     else if(m.status==='done')projBadge='<span class="badge bg">✓ Completed</span>';
     else if(m.status==='wip')projBadge=`<span class="badge bo">⟳ On Going</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${m.weightedPct}%</div>`;
     else projBadge='<span class="badge bgr">— Pending</span>';
