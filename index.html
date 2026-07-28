@@ -3351,9 +3351,7 @@ function pemrShowDateSummary(dk){
   const dateLabel=new Date(y,m-1,d).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
   const pes=ctx.peNames||[];
   const pr=mm=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm]||(mm?1:0);
-
   const peStats={};
-const peStats={};
   let gTotal=0,gUpd=0,gPend=0,gOn=0,gWo=0,gNa=0,gOnLeave=0;
   let gCompleted=0,gHold=0,gCancel=0,gVendorNotFinal=0;
   const popupMs=new Date(y,m-1,d).getTime();
