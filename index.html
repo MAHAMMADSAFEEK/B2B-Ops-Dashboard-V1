@@ -3353,14 +3353,27 @@ function pemrShowDateSummary(dk){
   const pr=mm=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm]||(mm?1:0);
 
   const peStats={};
+const peStats={};
   let gTotal=0,gUpd=0,gPend=0,gOn=0,gWo=0,gNa=0,gOnLeave=0;
+  let gCompleted=0,gHold=0,gCancel=0,gVendorNotFinal=0;
+  const popupMs=new Date(y,m-1,d).getTime();
   pes.forEach(pe=>{
     const pids=ctx.peProjects[pe]||[];
     const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].has(dk));
     if(onLeave) gOnLeave++;
-    const st={total:pids.length,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave,projects:[]};
+    const st={total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave,projects:[]};
     pids.forEach(pid=>{
-      gTotal++;
+      const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+      if(row){
+        const h=povHoldInfo(row);
+        if(h.cancelled&&h.cancelDate&&popupMs>=new Date(h.cancelDate.getFullYear(),h.cancelDate.getMonth(),h.cancelDate.getDate()).getTime()){gCancel++;return;}
+        const dayInHold=h.holdIntervals.some(iv=>{if(!iv.start)return false;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():new Date().setHours(0,0,0,0);return popupMs>=s&&popupMs<=e;});
+        if(dayInHold){gHold++;return;}
+      }
+      const met=computeProjectMetrics(pid);
+      if(met.status==='done'){gCompleted++;return;}
+      if(row&&!vendorFinalizeDate(row)){gVendorNotFinal++;return;}
+      st.total++;gTotal++;
       const arows=ctx.attByPD[pid+'|'+dk];
       const nm=ctx.projName[pid]||pid;
       if(!arows||!arows.length){ st.pending++; gPend++; st.projects.push({pid,name:nm,status:'pending'}); return; }
@@ -3389,12 +3402,16 @@ function pemrShowDateSummary(dk){
   const peActive=peUpd+pePend;
   const selCard=(key)=>_pemrDateCardF===key?'outline:2px solid var(--accent);':'';
   const cardBtn=(key,inner)=>`<div onclick="pemrDateSetCardF('${key}')" style="cursor:pointer;${selCard(key)}border-radius:16px;">${inner}</div>`;
-  const cards=
+const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
     cardBtn('upd',metricWithBar('ti-user-check','PEs Updated',peUpd,`Full ${peFull} · Partial ${pePart} · ${peActive?Math.round(peUpd/peActive*100):0}%`,'#34c98a',peActive?peUpd/peActive*100:0,'#34c98a'))+
     cardBtn('leave',metric('ti-beach','On Leave',peLeave,'PEs','#3bc0d8'))+
     cardBtn('weekoff',metric('ti-calendar-off','Week-Off',peWO,'PEs','#9b6dff'))+
-    cardBtn('pending',metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c'));
+    cardBtn('pending',metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c'))+
+    metric('ti-circle-check','Completed',gCompleted,'Projects','#0d9488')+
+    metric('ti-player-pause','On Hold',gHold,'Projects','#9b6dff')+
+    metric('ti-ban','Cancelled',gCancel,'Projects','#e0518a')+
+    metric('ti-file-off','Vendor Not Finalized',gVendorNotFinal,'Projects','#8b92b0');
   const pesView=_pemrDateCardF?pes.filter(pe=>peCat[pe]===_pemrDateCardF):pes;
   const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   
