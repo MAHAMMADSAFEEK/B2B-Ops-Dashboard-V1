@@ -3174,21 +3174,46 @@ function pemrShowDay(peName,dk){
   const ctx=_pemrCtx;if(!ctx||!ctx.attByPD)return;
   const pids=ctx.peProjects[peName]||[];
   const [y,m,d]=dk.split('-').map(Number);
+  const popupMs=new Date(y,m-1,d).getTime();
   const dateLabel=new Date(y,m-1,d).toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+  let completedN=0,holdN=0,cancelN=0,vendorNotFinalN=0,marked=0,notMarked=0;
+  const toBeUpdatePids=[];
+  pids.forEach(pid=>{
+    const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+    if(row){
+      const h=povHoldInfo(row);
+      if(h.cancelled&&h.cancelDate&&popupMs>=new Date(h.cancelDate.getFullYear(),h.cancelDate.getMonth(),h.cancelDate.getDate()).getTime()){cancelN++;return;}
+      const dayInHold=h.holdIntervals.some(iv=>{if(!iv.start)return false;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():new Date().setHours(0,0,0,0);return popupMs>=s&&popupMs<=e;});
+      if(dayInHold){holdN++;return;}
+    }
+    const met=computeProjectMetrics(pid);
+    if(met.status==='done'){completedN++;return;}
+    if(row&&!vendorFinalizeDate(row)){vendorNotFinalN++;return;}
+    toBeUpdatePids.push(pid);
+    const r=ctx.attByPD[pid+'|'+dk];
+    if(r&&r.length)marked++;else notMarked++;
+  });
+
   const sortedPids=[...pids].sort((a,b)=>{
     const ha=(ctx.attByPD[a+'|'+dk]&&ctx.attByPD[a+'|'+dk].length)?0:1;
     const hb=(ctx.attByPD[b+'|'+dk]&&ctx.attByPD[b+'|'+dk].length)?0:1;
     if(ha!==hb)return ha-hb;
     return (ctx.projName[a]||a).localeCompare(ctx.projName[b]||b);
   });
-  const marked=sortedPids.filter(pid=>{const r=ctx.attByPD[pid+'|'+dk];return r&&r.length;}).length;
   const cards=sortedPids.map(pid=>pemrProjectCard(ctx,pid,dk)).join('');
 
   const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[peName]&&ctx.leavesByPE[peName].has(dk));
-  const summary=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;">
+  const toBeUpdate=toBeUpdatePids.length;
+  const summary=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;">
     <span>Total Projects: <b style="color:var(--text);">${pids.length}</b></span>
+    <span>To Be Updated: <b style="color:#f5a623;">${toBeUpdate}</b></span>
     <span>Activity updated: <b style="color:#34c98a;">${marked}</b></span>
-    <span>Not marked: <b style="color:#e74c3c;">${pids.length-marked}</b></span>
+    <span>Not marked: <b style="color:#e74c3c;">${notMarked}</b></span>
+    <span>Completed: <b style="color:#0d9488;">${completedN}</b></span>
+    <span>On Hold: <b style="color:#9b6dff;">${holdN}</b></span>
+    <span>Cancelled: <b style="color:#e0518a;">${cancelN}</b></span>
+    <span>Vendor Not Finalized: <b style="color:#8b92b0;">${vendorNotFinalN}</b></span>
     ${onLeave?`<span class="badge bb" style="margin-left:auto;">🏖 ${ctx.leavesByPE[peName].get(dk)||'Leave'}</span>`:''}
   </div>`;
 
