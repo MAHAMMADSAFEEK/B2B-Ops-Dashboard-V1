@@ -3391,29 +3391,30 @@ function pemrShowDateSummary(dk){
     peStats[pe]=st;
   });
 
- let peUpd=0,peFull=0,pePart=0,pePend=0,peLeave=0,peWO=0;
+let peUpd=0,peFull=0,pePart=0,pePend=0,peLeave=0,peWO=0,peNotAssigned=0,peNothingToUpdate=0;
   const peCat={};
   pes.forEach(pe=>{
     const st=peStats[pe];
-    const lv=(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].get)?(ctx.leavesByPE[pe].get(dk)||''):'';
-    if(st.onLeave){if(String(lv).toLowerCase().indexOf('week')>=0){peWO++;peCat[pe]='weekoff';}else{peLeave++;peCat[pe]='leave';}return;}
-    if(st.total===0){peCat[pe]='none';return;}
+    const leaveVal=(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].get)?(ctx.leavesByPE[pe].get(dk)||''):'';
+    if(st.onLeave){if(String(leaveVal).toLowerCase().indexOf('week')>=0){peWO++;peCat[pe]='weekoff';}else{peLeave++;peCat[pe]='leave';}return;}
+    const pids=ctx.peProjects[pe]||[];
+    if(!pids.length){peNotAssigned++;peCat[pe]='notassigned';return;}
+    if(st.total===0){peNothingToUpdate++;peCat[pe]='nothingtoupdate';return;}
     if(st.updated>0){peUpd++;if(st.updated>=st.total)peFull++;else pePart++;peCat[pe]='upd';}
     else{pePend++;peCat[pe]='pending';}
   });
-  const peActive=peUpd+pePend;
+  const peToBeUpdate=peUpd+pePend;
   const selCard=(key)=>_pemrDateCardF===key?'outline:2px solid var(--accent);':'';
   const cardBtn=(key,inner)=>`<div onclick="pemrDateSetCardF('${key}')" style="cursor:pointer;${selCard(key)}border-radius:16px;">${inner}</div>`;
 const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
-    cardBtn('upd',metricWithBar('ti-user-check','PEs Updated',peUpd,`Full ${peFull} · Partial ${pePart} · ${peActive?Math.round(peUpd/peActive*100):0}%`,'#34c98a',peActive?peUpd/peActive*100:0,'#34c98a'))+
+    cardBtn('notassigned',metric('ti-user-off','Not Assigned Yet',peNotAssigned,'No projects','#8b92b0'))+
     cardBtn('leave',metric('ti-beach','On Leave',peLeave,'PEs','#3bc0d8'))+
     cardBtn('weekoff',metric('ti-calendar-off','Week-Off',peWO,'PEs','#9b6dff'))+
-    cardBtn('pending',metricWithBar('ti-user-x','Pending',pePend,`${peActive?Math.round(pePend/peActive*100):0}% of active PEs`,'#e74c3c',peActive?pePend/peActive*100:0,'#e74c3c'))+
-    metric('ti-circle-check','Completed',gCompleted,'Projects','#0d9488')+
-    metric('ti-player-pause','On Hold',gHold,'Projects','#9b6dff')+
-    metric('ti-ban','Cancelled',gCancel,'Projects','#e0518a')+
-    metric('ti-file-off','Vendor Not Finalized',gVendorNotFinal,'Projects','#8b92b0');
+    cardBtn('nothingtoupdate',metric('ti-circle-check','Project Completed',peNothingToUpdate,'All projects done/hold/cancelled','#0d9488'))+
+    cardBtn('tobeupdate',metric('ti-list-check','To Be Updated',peToBeUpdate,'PEs with active projects','#f5a623'))+
+    cardBtn('upd',metricWithBar('ti-user-check','Updated',peUpd,`Full ${peFull} · Partial ${pePart} · ${peToBeUpdate?Math.round(peUpd/peToBeUpdate*100):0}%`,'#34c98a',peToBeUpdate?peUpd/peToBeUpdate*100:0,'#34c98a'))+
+    cardBtn('pending',metricWithBar('ti-user-x','Pending',pePend,`${peToBeUpdate?Math.round(pePend/peToBeUpdate*100):0}% of to-be-updated`,'#e74c3c',peToBeUpdate?pePend/peToBeUpdate*100:0,'#e74c3c'));
   const pesView=_pemrDateCardF?pes.filter(pe=>peCat[pe]===_pemrDateCardF):pes;
   const escq=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   
