@@ -3176,7 +3176,10 @@ const _leadRow=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
 
 function pemrShowDay(peName,dk){
   const ctx=_pemrCtx;if(!ctx||!ctx.attByPD)return;
-  const pids=ctx.peProjects[peName]||[];
+  const assignedPids=ctx.peProjects[peName]||[];
+  const extraSet=(ctx.attByPEDay&&ctx.attByPEDay[peName+'|'+dk])||new Set();
+  const extraPids=[...extraSet].filter(p=>!assignedPids.includes(p));
+  const pids=[...assignedPids,...extraPids];
   const [y,m,d]=dk.split('-').map(Number);
   const popupMs=new Date(y,m-1,d).getTime();
   const dateLabel=new Date(y,m-1,d).toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
@@ -3205,12 +3208,19 @@ const sortedPids=[...pids].sort((a,b)=>{
     if(ha!==hb)return ha-hb;
     return (ctx.projName[a]||a).localeCompare(ctx.projName[b]||b);
   });
-  const cards=sortedPids.map(pid=>pemrProjectCard(ctx,pid,dk,peName)).join('');
+  const cards=sortedPids.map(pid=>{
+    const card=pemrProjectCard(ctx,pid,dk,peName);
+    if(extraPids.includes(pid)){
+      return card.replace('<div class="pemr-card"','<div class="pemr-card" data-extra="1"').replace('</span><span style="margin-left:auto;">','</span><span class="badge" style="background:rgba(79,142,247,.15);color:#4f8ef7;border:1px solid rgba(79,142,247,.3);margin-right:6px;">➕ Additional</span><span style="margin-left:auto;">');
+    }
+    return card;
+  }).join('');
 
   const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[peName]&&ctx.leavesByPE[peName].has(dk));
   const toBeUpdate=toBeUpdatePids.length;
-  const summary=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;">
-    <span>Total Projects: <b style="color:var(--text);">${pids.length}</b></span>
+const summary=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;">
+    <span>Assigned Projects: <b style="color:var(--text);">${assignedPids.length}</b></span>
+    ${extraPids.length?`<span>Additional Today: <b style="color:#4f8ef7;">${extraPids.length}</b></span>`:''}
     <span>To Be Updated: <b style="color:#f5a623;">${toBeUpdate}</b></span>
     <span>Activity updated: <b style="color:#34c98a;">${marked}</b></span>
     <span>Not marked: <b style="color:#e74c3c;">${notMarked}</b></span>
@@ -3651,14 +3661,17 @@ const peEmailIdx=ci(D.pe.h,'email','mail');
   const emailToPE={};
   if(peEmailIdx>=0)D.pe.r.forEach(x=>{const em=v(x,peEmailIdx).toLowerCase().trim(),nm=v(x,1);if(em&&nm)emailToPE[em]=nm;});
   // Attendance resolved to the actual PE who checked in (col E email) — not the project's static Lead Tracker PE.
-  const attByPEPD={};
+const attByPEPD={},attByPEDay={};
   D.att.r.forEach(x=>{
     const pid=v(x,ATT_COL.PID),d=parseDate(v(x,ATT_COL.DATE));
     if(!pid||!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
     const email=v(x,ATT_COL.EMAIL).toLowerCase().trim();
     const pe=emailToPE[email];if(!pe)return;
-    const k=pe+'|'+pid+'|'+pmrKey(d);
+    const dk=pmrKey(d);
+    const k=pe+'|'+pid+'|'+dk;
     (attByPEPD[k]=attByPEPD[k]||[]).push(x);
+    const dayKey=pe+'|'+dk;
+    (attByPEDay[dayKey]=attByPEDay[dayKey]||new Set()).add(pid);
   });
   // Canonical PE-name lookup (case-insensitive) so Daily Activity names map to the master spelling
   const peNameCanon={};
@@ -3688,7 +3701,7 @@ const peEmailIdx=ci(D.pe.h,'email','mail');
   D.lead.r.forEach(x=>{const pe=lv(x,LEAD_COL.PE);if(!pe)return;if(!peClusterMap[pe])peClusterMap[pe]=lv(x,LEAD_COL.CLUSTER);if(!peCityMgrMap[pe])peCityMgrMap[pe]=lv(x,LEAD_COL.CITYMGR);});
 
   // Save context for the day-detail popup
-  _pemrCtx={peProjects,projName,attByPD,attByPEPD,tbtByPD,dprByPD,projDates,leavesByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
+  _pemrCtx={peProjects,projName,attByPD,attByPEPD,attByPEDay,tbtByPD,dprByPD,projDates,leavesByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
 
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   head.innerHTML='<tr><th class="pemr-c0">PE Name</th><th class="pemr-c1">Projects</th>'+
@@ -3710,12 +3723,14 @@ let updated=0,tbt=false,dpr=false;
         if(peRows&&peRows.length)updated++;
         const t=tbtIdx[pid+'|'+dk];if(t){if(t.tbt)tbt=true;if(t.dpr)dpr=true;}
       });
+      const extraSet=attByPEDay[pe+'|'+dk];
+      const extraCount=extraSet?[...extraSet].filter(p=>!pids.includes(p)).length:0;
       let cls,label;
       if(updated===0){
         if(onLeave){cls='pmr-teal';label=(leavesByPE[pe].get(dk)||'Leave');}
         else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
       } else{cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
-      const tags=(updated>0)?`<div class="pmr-tags"><span class="pmr-tg ${tbt?'pmr-green':'pmr-red'}">TBT ${tbt?'✓':'—'}</span><span class="pmr-tg ${dpr?'pmr-green':'pmr-red'}">DPR ${dpr?'✓':'—'}</span></div>`:'';
+      const tags=(updated>0)?`<div class="pmr-tags"><span class="pmr-tg ${tbt?'pmr-green':'pmr-red'}">TBT ${tbt?'✓':'—'}</span><span class="pmr-tg ${dpr?'pmr-green':'pmr-red'}">DPR ${dpr?'✓':'—'}</span>${extraCount?`<span class="pmr-tg" style="background:rgba(79,142,247,.2);color:#4f8ef7;">+${extraCount} extra</span>`:''}</div>`:'';
       const click=future?'':` onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;"`;
       return `<td><div class="pmr-cell ${cls}"${click}>${label}${tags}</div></td>`;
     }).join('');
