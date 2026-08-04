@@ -2571,7 +2571,7 @@ const pctOf=(n)=>G.count?Math.round(n/G.count*100):0;
 
 // ── PROJECT MONTHLY REPORT ────────────────────────────────────
 // Attendance fixed cols: A=UniqueID(0) B=Date(1) C=ProjName(2) D=ProjID(3) L=flag(11) M=visitStatus(12)
-const ATT_COL={UID:0,DATE:1,PNAME:2,PID:3,L:11,M:12,REMARK:13};
+const ATT_COL={UID:0,DATE:1,PNAME:2,PID:3,EMAIL:4,L:11,M:12,REMARK:13};
 // TBT fixed cols already: A=UID(0) I=Date(8) M=TBT Report(12) N=DPR Report(13)
 const PMR_TBT={UID:0,DATE:8,TBTREP:12,DPRREP:13};
 
@@ -3079,11 +3079,11 @@ function pemrDur(cin,cout){const a=pemrTimeP(cin),b=pemrTimeP(cout);if(!a||!b)re
 function pemrEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 // Renders one project's detail card for a given day (shared by PE & Project-wise popups)
-function pemrProjectCard(ctx,pid,dk){
+function pemrProjectCard(ctx,pid,dk,peName){
   const [y,m,d]=dk.split('-').map(Number);
   const pr=mm=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm]||(mm?1:0);
   const nm=ctx.projName[pid]||pid;
-  const rows=ctx.attByPD[pid+'|'+dk];
+  const rows=peName?(ctx.attByPEPD&&ctx.attByPEPD[peName+'|'+pid+'|'+dk]):ctx.attByPD[pid+'|'+dk];
   const head=(badge)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-weight:600;font-size:13px;color:var(--text);">${pemrEsc(nm)}</span><span style="font-size:10px;color:var(--muted);">${pemrEsc(pid)}</span><span style="margin-left:auto;">${badge}</span></div>`;
 const _leadRow=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
   if(_leadRow){
@@ -3199,13 +3199,13 @@ function pemrShowDay(peName,dk){
     if(r&&r.length)marked++;else notMarked++;
   });
 
-  const sortedPids=[...pids].sort((a,b)=>{
-    const ha=(ctx.attByPD[a+'|'+dk]&&ctx.attByPD[a+'|'+dk].length)?0:1;
-    const hb=(ctx.attByPD[b+'|'+dk]&&ctx.attByPD[b+'|'+dk].length)?0:1;
+const sortedPids=[...pids].sort((a,b)=>{
+    const ha=(ctx.attByPEPD[peName+'|'+a+'|'+dk]&&ctx.attByPEPD[peName+'|'+a+'|'+dk].length)?0:1;
+    const hb=(ctx.attByPEPD[peName+'|'+b+'|'+dk]&&ctx.attByPEPD[peName+'|'+b+'|'+dk].length)?0:1;
     if(ha!==hb)return ha-hb;
     return (ctx.projName[a]||a).localeCompare(ctx.projName[b]||b);
   });
-  const cards=sortedPids.map(pid=>pemrProjectCard(ctx,pid,dk)).join('');
+  const cards=sortedPids.map(pid=>pemrProjectCard(ctx,pid,dk,peName)).join('');
 
   const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[peName]&&ctx.leavesByPE[peName].has(dk));
   const toBeUpdate=toBeUpdatePids.length;
@@ -3376,7 +3376,7 @@ function pemrShowDateSummary(dk){
       if(met.status==='done'){gCompleted++;return;}
       if(row&&!vendorFinalizeDate(row)){gVendorNotFinal++;return;}
       st.total++;gTotal++;
-      const arows=ctx.attByPD[pid+'|'+dk];
+      const arows=ctx.attByPEPD&&ctx.attByPEPD[pe+'|'+pid+'|'+dk];
       const nm=ctx.projName[pid]||pid;
       if(!arows||!arows.length){ st.pending++; gPend++; st.projects.push({pid,name:nm,status:'pending'}); return; }
       st.updated++; gUpd++;
@@ -3647,9 +3647,19 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
 
   // Off-days index: PE name -> Map of dateKey -> 'Leave' | 'Week-Off' (this month).
   // Daily Activity sheet: A(0)=Name (was email), B(1)=Task Date, C(2)=Day Status ("Leave"/"Week-Off").
-  const peEmailIdx=ci(D.pe.h,'email','mail');
+const peEmailIdx=ci(D.pe.h,'email','mail');
   const emailToPE={};
   if(peEmailIdx>=0)D.pe.r.forEach(x=>{const em=v(x,peEmailIdx).toLowerCase().trim(),nm=v(x,1);if(em&&nm)emailToPE[em]=nm;});
+  // Attendance resolved to the actual PE who checked in (col E email) — not the project's static Lead Tracker PE.
+  const attByPEPD={};
+  D.att.r.forEach(x=>{
+    const pid=v(x,ATT_COL.PID),d=parseDate(v(x,ATT_COL.DATE));
+    if(!pid||!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
+    const email=v(x,ATT_COL.EMAIL).toLowerCase().trim();
+    const pe=emailToPE[email];if(!pe)return;
+    const k=pe+'|'+pid+'|'+pmrKey(d);
+    (attByPEPD[k]=attByPEPD[k]||[]).push(x);
+  });
   // Canonical PE-name lookup (case-insensitive) so Daily Activity names map to the master spelling
   const peNameCanon={};
   allPEs.forEach(n=>{const k=String(n).trim().toLowerCase();if(k)peNameCanon[k]=n;});
@@ -3678,7 +3688,7 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
   D.lead.r.forEach(x=>{const pe=lv(x,LEAD_COL.PE);if(!pe)return;if(!peClusterMap[pe])peClusterMap[pe]=lv(x,LEAD_COL.CLUSTER);if(!peCityMgrMap[pe])peCityMgrMap[pe]=lv(x,LEAD_COL.CITYMGR);});
 
   // Save context for the day-detail popup
-  _pemrCtx={peProjects,projName,attByPD,tbtByPD,dprByPD,projDates,leavesByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
+  _pemrCtx={peProjects,projName,attByPD,attByPEPD,tbtByPD,dprByPD,projDates,leavesByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
 
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   head.innerHTML='<tr><th class="pemr-c0">PE Name</th><th class="pemr-c1">Projects</th>'+
@@ -3694,9 +3704,10 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
       const dk=pmrKey(d);const future=d>today;
       if(leadNotAssigned)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       const onLeave=(leavesByPE[pe]&&leavesByPE[pe].has(dk));
-      let updated=0,tbt=false,dpr=false;
+let updated=0,tbt=false,dpr=false;
       pids.forEach(pid=>{
-        if(attProjDate.has(pid+'|'+dk))updated++;
+        const peRows=attByPEPD[pe+'|'+pid+'|'+dk];
+        if(peRows&&peRows.length)updated++;
         const t=tbtIdx[pid+'|'+dk];if(t){if(t.tbt)tbt=true;if(t.dpr)dpr=true;}
       });
       let cls,label;
