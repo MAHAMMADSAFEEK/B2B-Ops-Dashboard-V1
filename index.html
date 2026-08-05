@@ -3106,9 +3106,12 @@ const _leadRow=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
       const rem=_dayInHold.remark?`<div style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-top:4px;white-space:pre-wrap;">📝 ${pemrEsc(_dayInHold.remark)}</div>`:'';
       return `<div class="pemr-card" style="border-left:3px solid #9b6dff;">${head('<span class="badge bp">⏸ On Hold</span>')}${rem}</div>`;
     }
-    const _met=computeProjectMetrics(pid);
-    if(_met.status==='done'){
-      return `<div class="pemr-card" style="border-left:3px solid #0d9488;">${head('<span class="badge" style="background:rgba(13,148,136,0.15);color:#0d9488;border:1px solid rgba(13,148,136,0.3);">✓ Completed</span>')}</div>`;
+const _met=computeProjectMetrics(pid);
+    if(_met.status==='done'&&_met.lastAttDate){
+      const _closeMs=new Date(_met.lastAttDate.getFullYear(),_met.lastAttDate.getMonth(),_met.lastAttDate.getDate()).getTime();
+      if(_popupMs>_closeMs){
+        return `<div class="pemr-card" style="border-left:3px solid #0d9488;">${head('<span class="badge" style="background:rgba(13,148,136,0.15);color:#0d9488;border:1px solid rgba(13,148,136,0.3);">✓ Completed</span>')}</div>`;
+      }
     }
   }
   if(!rows||!rows.length){
