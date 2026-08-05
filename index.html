@@ -2961,8 +2961,13 @@ const cells=days.map(d=>{
       if(_closedMs!==null&&dMs>_closedMs){
         return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       }
-      const hv=d<=today?_dayInHold(d):null;
-      const c=hv?{cls:'pmr-hold',label:'On Hold',sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+const hv=d<=today?_dayInHold(d):null;
+      let holdDayCount=null;
+      if(hv&&hv.start){
+        const s0=new Date(hv.start.getFullYear(),hv.start.getMonth(),hv.start.getDate()).getTime();
+        holdDayCount=Math.round((d.getTime()-s0)/86400000)+1;
+      }
+      const c=hv?{cls:'pmr-hold',label:'On Hold'+(holdDayCount?' - '+holdDayCount:''),sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
       
       const inInstall=pcDays.has(pmrKey(d));
   
