@@ -2958,6 +2958,9 @@ const cells=days.map(d=>{
       if(_closedMs!==null&&dMs===_closedMs){
         return `<td><div class="pmr-cell pmr-closed" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">Project Closed</div></td>`;
       }
+if(_closedMs!==null&&dMs===_closedMs){
+        return `<td><div class="pmr-cell pmr-closed" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">Project Closed</div></td>`;
+      }
       if(_closedMs!==null&&dMs>_closedMs){
         return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       }
