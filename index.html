@@ -3266,6 +3266,8 @@ function pemrCloseDay(){const ov=document.getElementById('pemr-modal-ov');if(ov)
 
 function pemrShowPE(peName){
   const ctx=_pemrCtx;if(!ctx||!ctx.attByPD)return;
+  _pemrPECurrent=peName;
+  // _pemrPEView stays as-is across PE switches; remove next line if you want it to always reset to 'summary'
   const pids=ctx.peProjects[peName]||[];
   const yy=ctx.yy,mm=ctx.mm;
   const monthLabel=new Date(yy,mm-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
@@ -3318,21 +3320,74 @@ function pemrShowPE(peName){
     ? `<div style="margin-top:14px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Leave Dates (${leaveDates.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${leaveChips}</div></div>`
     : '';
 
-  let ov=document.getElementById('pemr-modal-ov');
-  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
-  ov.innerHTML=`<div class="pmr-modal" style="max-width:620px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
-      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(peName)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Attendance summary · ${monthLabel}</div></div>
-      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
-    </div>
-    ${total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
+// ── Sub-view 2: Project-wise (assigned + additional, size/status/TAT) ──
+  const extraPidsAll=new Set();
+  for(let dd=1;dd<=daysInMonth;dd++){
+    const dk=yy+'-'+mm+'-'+dd;
+    const s=(ctx.attByPEDay&&ctx.attByPEDay[peName+'|'+dk]);
+    if(s)s.forEach(p=>{if(!pids.includes(p))extraPidsAll.add(p);});
+  }
+  const allProjPids=[...pids,...extraPidsAll];
+  const projRowsHtml=allProjPids.map(pid=>{
+    const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+    const nm=ctx.projName[pid]||pid;
+    const size=row?(lv(row,LEAD_COL.SIZE)||'—'):'—';
+    const isExtra=extraPidsAll.has(pid);
+    let statusBadge='—';
+    if(row){
+      const h=povHoldInfo(row);
+      if(h.cancelled)statusBadge='<span class="badge" style="background:rgba(224,81,138,0.15);color:#e0518a;border:1px solid rgba(224,81,138,0.3);">Cancelled</span>';
+      else if(h.onHold)statusBadge='<span class="badge bp">On Hold</span>';
+      else{
+        const m=computeProjectMetrics(pid);
+        if(m.status==='done')statusBadge='<span class="badge bg">Completed</span>';
+        else if(!vendorFinalizeDate(row))statusBadge='<span class="badge bgr">Vendor Not Finalized</span>';
+        else if(m.installStatus==='done')statusBadge='<span class="badge bb">Handover Pending</span>';
+        else statusBadge='<span class="badge bo">On Going</span>';
+      }
+    }
+    const m2=computeProjectMetrics(pid);
+    const tat=m2.tat!==null?m2.tat+'d':'—';
+    const escId=pid.replace(/'/g,"\\'"),escName=nm.replace(/'/g,"\\'");
+    return `<tr>
+      <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(nm)}${isExtra?' <span class="badge" style="background:rgba(79,142,247,.15);color:#4f8ef7;border:1px solid rgba(79,142,247,.3);font-size:9px;">Additional</span>':''}<div style="font-size:9px;color:var(--muted);">${pemrEsc(pid)}</div></td>
+      <td style="text-align:right;font-size:12px;">${size}</td>
+      <td>${statusBadge}</td>
+      <td style="text-align:right;font-size:12px;">${tat}</td>
+    </tr>`;
+  }).join('');
+  const projTable=allProjPids.length
+    ? `<div class="table-wrap" style="max-height:50vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${projRowsHtml}</tbody></table></div>`
+    : '<div class="empty">No projects.</div>';
+  const projSummaryLine=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Assigned: <b style="color:var(--text);">${pids.length}</b>${extraPidsAll.size?` · Additional this month: <b style="color:#4f8ef7;">${extraPidsAll.size}</b>`:''} · Total: <b style="color:var(--text);">${allProjPids.length}</b></div>`;
+
+  const tabBar=`<div style="display:flex;gap:6px;margin:10px 0;background:var(--bg2);border-radius:8px;padding:4px;width:fit-content;">
+    <button onclick="pemrPESetView('summary')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrPEView==='summary'?'var(--accent)':'transparent'};color:${_pemrPEView==='summary'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Attendance Summary</button>
+    <button onclick="pemrPESetView('projects')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrPEView==='projects'?'var(--accent)':'transparent'};color:${_pemrPEView==='projects'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Project-wise</button>
+  </div>`;
+
+  const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
     ${missedSection}
     ${leaveSection}
     <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave) × ${total} project(s). Leave dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
-    :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>'}
+    :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>';
+
+  const bodyContent=_pemrPEView==='projects'?(projSummaryLine+projTable):summaryContent;
+
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:700px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(peName)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${monthLabel}</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    ${tabBar}
+    <div style="overflow:auto;">${bodyContent}</div>
   </div>`;
   ov.style.display='flex';
 }
+
+  
 document.addEventListener('keydown',e=>{if(e.key==='Escape')pemrCloseDay();});
 
   // ─────────────────────────────────────────────────────────────
@@ -3353,6 +3408,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')pemrCloseDay();});
 // ── State + helpers for hierarchy expand/collapse ──
 let _pemrDateExp = new Set();   // expanded keys: "c:<cluster>", "c:<cluster>|m:<cm>", "c:<cluster>|m:<cm>|p:<pe>"
 let _pemrDateDk  = null;        // current dateKey being viewed (for re-render on toggle)
+
+  let _pemrPEView='summary'; // 'summary' | 'projects'
+function pemrPESetView(v){_pemrPEView=v;if(_pemrPECurrent)pemrShowPE(_pemrPECurrent);}
+let _pemrPECurrent=null;
+
+  
 
 function pemrDateToggle(k){
   if(_pemrDateExp.has(k)) _pemrDateExp.delete(k); else _pemrDateExp.add(k);
@@ -3729,23 +3790,44 @@ const attByPEPD={},attByPEDay={};
   if(!peNames.length){body.innerHTML=`<tr><td class="empty" colspan="${2+days.length}">No PEs match the selected filters</td></tr>`;return;}
 
   body.innerHTML=peNames.map(pe=>{
-    const pids=peProjects[pe]||[];const total=pids.length;
+const pids=peProjects[pe]||[];
     const leadNotAssigned=!peAssignedAny[pe];
     const peEsc=pe.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const cells=days.map(d=>{
       const dk=pmrKey(d);const future=d>today;
       if(leadNotAssigned)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       const onLeave=(leavesByPE[pe]&&leavesByPE[pe].has(dk));
-let updated=0,tbt=false,dpr=false;
-      pids.forEach(pid=>{
+      const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+      // Active pids for this specific day: exclude projects completed on/before this day (or Hold/Cancelled/Vendor-Not-Finalized)
+      const activePids=pids.filter(pid=>{
+        const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+        if(row){
+          const h=povHoldInfo(row);
+          if(h.cancelled&&h.cancelDate&&dMs>=new Date(h.cancelDate.getFullYear(),h.cancelDate.getMonth(),h.cancelDate.getDate()).getTime())return false;
+          const dayInHold=h.holdIntervals.some(iv=>{if(!iv.start)return false;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();return dMs>=s&&dMs<=e;});
+          if(dayInHold)return false;
+          if(!vendorFinalizeDate(row))return false;
+        }
+        const met=computeProjectMetrics(pid);
+        if(met.status==='done'&&met.lastAttDate){
+          const closeMs=new Date(met.lastAttDate.getFullYear(),met.lastAttDate.getMonth(),met.lastAttDate.getDate()).getTime();
+          if(dMs>closeMs)return false;
+        }
+        return true;
+      });
+      const total=activePids.length;
+      let updated=0,tbt=false,dpr=false;
+      activePids.forEach(pid=>{
         const peRows=attByPEPD[pe+'|'+pid+'|'+dk];
         if(peRows&&peRows.length)updated++;
         const t=tbtIdx[pid+'|'+dk];if(t){if(t.tbt)tbt=true;if(t.dpr)dpr=true;}
       });
       const extraSet=attByPEDay[pe+'|'+dk];
-      const extraCount=extraSet?[...extraSet].filter(p=>!pids.includes(p)).length:0;
+      const extraCount=extraSet?[...extraSet].filter(p=>!activePids.includes(p)).length:0;
       let cls,label;
-      if(updated===0){
+      if(total===0){
+        cls='pmr-grey';label='—';
+      } else if(updated===0){
         if(onLeave){cls='pmr-teal';label=(leavesByPE[pe].get(dk)||'Leave');}
         else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
       } else{cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
@@ -3753,9 +3835,9 @@ let updated=0,tbt=false,dpr=false;
       const click=future?'':` onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;"`;
       return `<td><div class="pmr-cell ${cls}"${click}>${label}${tags}</div></td>`;
     }).join('');
-    const projCell=leadNotAssigned
+const projCell=leadNotAssigned
       ? '<span style="color:var(--muted);">—</span>'
-      : `<span class="badge bp">${total}</span>`;
+      : `<span class="badge bp">${pids.length}</span>`;
     const nameLink=`<span onclick="pemrShowPE('${peEsc}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;">${pe}</span>`;
     const nameCell=leadNotAssigned
       ? `${nameLink}<div style="font-size:9px;color:#e74c3c;font-weight:400;margin-top:2px;">Lead not assigned</div>`
