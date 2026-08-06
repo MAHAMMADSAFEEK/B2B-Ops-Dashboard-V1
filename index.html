@@ -2898,8 +2898,16 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
     if(_pmrMS.status.size&&!povProjectStatuses(x).some(t=>_pmrMS.status.has(t)))return false;
     if(_pmrMS.pname.size&&!_pmrMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
     if(_pmrMS.pid.size&&!_pmrMS.pid.has(pid))return false;
+    // Hide projects completed before the selected month (still show in their completion month or earlier)
+    const _pmCheck=computeProjectMetrics(pid);
+    if(_pmCheck.status==='done'&&_pmCheck.lastAttDate){
+      const _cy=_pmCheck.lastAttDate.getFullYear(),_cm=_pmCheck.lastAttDate.getMonth();
+      if(yy>_cy||(yy===_cy&&mm-1>_cm))return false;
+    }
     return true;
   })
+
+  
     .sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));return c!==0?c:lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
 
   // Header
