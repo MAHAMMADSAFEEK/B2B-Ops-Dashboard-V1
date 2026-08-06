@@ -2724,6 +2724,8 @@ function pmrEvalCell(rows,tbtInfo,dateObj,today){
 
 let _pmrRemarks={};
 let _pmrCtx={};
+
+  
 function pmrShowDay(pid,dk){
   const ctx=_pmrCtx;if(!ctx||!ctx.attByPD)return;
   const [y,m,d]=dk.split('-').map(Number);
@@ -2740,7 +2742,98 @@ function pmrShowDay(pid,dk){
     <div style="overflow:auto;">${card}</div>
   </div>`;
   ov.style.display='flex';
+}z
+
+
+  let _pmrProjTab=1;
+let _pmrProjCurrent=null;
+function pmrProjSetTab(t){_pmrProjTab=t;if(_pmrProjCurrent)pmrShowProjectSummary(_pmrProjCurrent.pid,_pmrProjCurrent.pname);}
+
+function pmrShowProjectSummary(pid,pname){
+  const ctx=_pmrCtx;if(!ctx||!ctx.attByPD||!ctx.yy)return;
+  _pmrProjCurrent={pid,pname};
+  const yy=ctx.yy,mm=ctx.mm;
+  const daysInMonth=new Date(yy,mm,0).getDate();
+  const today=new Date();today.setHours(0,0,0,0);
+  const monthLabel=new Date(yy,mm-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const pr=mm2=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm2]||(mm2?1:0);
+
+  const leadRow=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+  const ownerName=leadRow?lv(leadRow,LEAD_COL.PE):'';
+  const peEmailIdx=ci(D.pe.h,'Mailid','email','mail');
+  let ownerEmail='';
+  if(ownerName&&peEmailIdx>=0){
+    const prow=D.pe.r.find(x=>v(x,1).trim().toLowerCase()===ownerName.trim().toLowerCase());
+    if(prow)ownerEmail=v(prow,peEmailIdx).toLowerCase().trim();
+  }
+
+  let notUpdated=0,onsite=0,without=0,noact=0,ownerUpdates=0,othersUpdates=0,tbtCnt=0,dprCnt=0,consideredDays=0;
+  const taskSet=new Set();
+
+  for(let dd=1;dd<=daysInMonth;dd++){
+    const dateObj=new Date(yy,mm-1,dd);
+    if(dateObj>today)continue;
+    consideredDays++;
+    const dk=pmrKey(dateObj);
+    const rows=ctx.attByPD[pid+'|'+dk];
+    const t=ctx.tbtByPD[pid+'|'+dk];
+    if(t){if(t.tbt)tbtCnt++;if(t.dpr)dprCnt++;}
+    const dList=ctx.dprByPD[pid+'|'+dk];
+    if(dList)dList.forEach(it=>{if(it.plan)taskSet.add(it.plan);});
+
+    if(!rows||!rows.length){notUpdated++;continue;}
+    let chosen=null,mNorm='';
+    rows.forEach(r=>{const mv=v(r,ATT_COL.M).toLowerCase();if(!chosen||pr(mv)>pr(mNorm)){chosen=r;mNorm=mv;}});
+    if(mNorm==='onsite visit')onsite++;
+    else if(mNorm==='without visit update')without++;
+    else if(mNorm==='no activity')noact++;
+
+    const chosenEmail=(v(chosen,ATT_COL.EMAIL)||'').toLowerCase().trim();
+    if(ownerEmail&&chosenEmail===ownerEmail)ownerUpdates++;
+    else othersUpdates++;
+  }
+
+  const updatedDays=onsite+without+noact;
+
+  const cardsTab1=
+    metric('ti-calendar','Days Considered',consideredDays,monthLabel,'#4f8ef7')+
+    metricWithBar('ti-calendar-check','Updated',updatedDays,`${consideredDays?Math.round(updatedDays/consideredDays*100):0}%`,'#34c98a',consideredDays?updatedDays/consideredDays*100:0,'#34c98a')+
+    metricWithBar('ti-calendar-x','Not Updated',notUpdated,`${consideredDays?Math.round(notUpdated/consideredDays*100):0}%`,'#e74c3c',consideredDays?notUpdated/consideredDays*100:0,'#e74c3c')+
+    metric('ti-alert-triangle','No Activity',noact,'Days','#f5a623')+
+    metric('ti-clipboard-check','TBT Updated',tbtCnt,'Days','#34c98a')+
+    metric('ti-file-report','DPR Updated',dprCnt,'Days','#3bc0d8');
+
+  const cardsTab2=
+    metric('ti-list-check','Tasks Updated',taskSet.size,'Distinct workplan items','#4f8ef7')+
+    metric('ti-user-check','Project Owner Updates',ownerUpdates,pemrEsc(ownerName)||'No PE assigned','#34c98a')+
+    metric('ti-users','Others Updated',othersUpdates,'By other PEs','#9b6dff')+
+    metric('ti-calendar','Total Days',consideredDays,monthLabel,'#4f8ef7')+
+    metric('ti-map-pin','Onsite Visit',onsite,'Days','#34c98a')+
+    metric('ti-clipboard','Without Visit',without,'Days','#3bc0d8')+
+    metric('ti-alert-triangle','No Activity',noact,'Days','#f5a623')+
+    metricWithBar('ti-calendar-x','Not Updated',notUpdated,`${consideredDays?Math.round(notUpdated/consideredDays*100):0}%`,'#e74c3c',consideredDays?notUpdated/consideredDays*100:0,'#e74c3c');
+
+  const tabBar=`<div style="display:flex;gap:6px;margin:10px 0;background:var(--bg2);border-radius:8px;padding:4px;width:fit-content;">
+    <button onclick="pmrProjSetTab(1)" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pmrProjTab===1?'var(--accent)':'transparent'};color:${_pmrProjTab===1?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Monthly Overview</button>
+    <button onclick="pmrProjSetTab(2)" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pmrProjTab===2?'var(--accent)':'transparent'};color:${_pmrProjTab===2?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Task &amp; Ownership</button>
+  </div>`;
+
+  const content=_pmrProjTab===2?cardsTab2:cardsTab1;
+
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:760px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;">
+      <div><div style="font-size:15px;font-weight:600;color:var(--text);">${pemrEsc(pname)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${pemrEsc(pid)} · ${monthLabel}</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    ${tabBar}
+    <div class="metrics" style="margin-top:8px;overflow:auto;">${content}</div>
+  </div>`;
+  ov.style.display='flex';
 }
+
+  
 
   
 function pmrShowDateSummary(dk){
@@ -2886,7 +2979,7 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
   });
   D.lead.r.forEach(x=>{const pid=lv(x,LEAD_COL.PID);if(pid)projName[pid]=lv(x,LEAD_COL.PNAME)||pid;});
   const projDates={};Object.keys(projDatesSet).forEach(p=>{projDates[p]=[...projDatesSet[p]].sort((a,b)=>a-b);});
-  _pmrCtx={attByPD:attIdx,tbtByPD:tbtIdx,dprByPD,projName,projDates,A_CI,A_CO,A_LOC};
+  _pmrCtx={attByPD:attIdx,tbtByPD:tbtIdx,dprByPD,projName,projDates,A_CI,A_CO,A_LOC,yy,mm};
 
   // Project rows from Lead Tracker (filtered)
 const projRows=D.lead.r.filter(x=>{
@@ -2995,7 +3088,7 @@ const _dl=povComputeDelay(x);
     const delayTag=isDelayedRow?`<div style="font-size:9px;color:#e74c3c;font-weight:700;margin-top:2px;">⚠ ${_dl.delayBy}d delayed</div>`:'';
     return `<tr${isDelayedRow?' class="pmr-row-delay"':''}>
       <td class="pmr-c0" style="font-size:11px;">${city}</td>
-      <td class="pmr-c1" title="${pname.replace(/"/g,'&quot;')}">${pname}<div style="font-size:9px;color:var(--muted);font-weight:400;">${pid}</div>${delayTag}</td>
+      <td class="pmr-c1" title="${pname.replace(/"/g,'&quot;')}"><span onclick="pmrShowProjectSummary('${pid.replace(/'/g,"\\'")}','${pname.replace(/'/g,"\\'")}')" style="cursor:pointer;color:#4f8ef7;text-decoration:underline;text-underline-offset:2px;">${pname}</span><div style="font-size:9px;color:var(--muted);font-weight:400;">${pid}</div>${delayTag}</td>
       <td class="pmr-c2">${size}</td>
       <td class="pmr-c3" style="font-size:11px;">${pe}</td>
       ${cells}
