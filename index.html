@@ -3729,26 +3729,49 @@ const attByPEPD={},attByPEDay={};
   if(!peNames.length){body.innerHTML=`<tr><td class="empty" colspan="${2+days.length}">No PEs match the selected filters</td></tr>`;return;}
 
   body.innerHTML=peNames.map(pe=>{
-    const pids=peProjects[pe]||[];const total=pids.length;
+const pids=peProjects[pe]||[];
     const leadNotAssigned=!peAssignedAny[pe];
     const peEsc=pe.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const cells=days.map(d=>{
       const dk=pmrKey(d);const future=d>today;
       if(leadNotAssigned)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       const onLeave=(leavesByPE[pe]&&leavesByPE[pe].has(dk));
-let updated=0,tbt=false,dpr=false;
-      pids.forEach(pid=>{
+      const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+      // Active pids for this specific day: exclude projects completed on/before this day (or Hold/Cancelled/Vendor-Not-Finalized)
+      const activePids=pids.filter(pid=>{
+        const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+        if(row){
+          const h=povHoldInfo(row);
+          if(h.cancelled&&h.cancelDate&&dMs>=new Date(h.cancelDate.getFullYear(),h.cancelDate.getMonth(),h.cancelDate.getDate()).getTime())return false;
+          const dayInHold=h.holdIntervals.some(iv=>{if(!iv.start)return false;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();return dMs>=s&&dMs<=e;});
+          if(dayInHold)return false;
+          if(!vendorFinalizeDate(row))return false;
+        }
+        const met=computeProjectMetrics(pid);
+        if(met.status==='done'&&met.lastAttDate){
+          const closeMs=new Date(met.lastAttDate.getFullYear(),met.lastAttDate.getMonth(),met.lastAttDate.getDate()).getTime();
+          if(dMs>closeMs)return false;
+        }
+        return true;
+      });
+      const total=activePids.length;
+      let updated=0,tbt=false,dpr=false;
+      activePids.forEach(pid=>{
         const peRows=attByPEPD[pe+'|'+pid+'|'+dk];
         if(peRows&&peRows.length)updated++;
         const t=tbtIdx[pid+'|'+dk];if(t){if(t.tbt)tbt=true;if(t.dpr)dpr=true;}
       });
       const extraSet=attByPEDay[pe+'|'+dk];
-      const extraCount=extraSet?[...extraSet].filter(p=>!pids.includes(p)).length:0;
+      const extraCount=extraSet?[...extraSet].filter(p=>!activePids.includes(p)).length:0;
       let cls,label;
-      if(updated===0){
+      if(total===0){
+        cls='pmr-grey';label='—';
+      } else if(updated===0){
         if(onLeave){cls='pmr-teal';label=(leavesByPE[pe].get(dk)||'Leave');}
         else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
       } else{cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
+
+      
       const tags=(updated>0)?`<div class="pmr-tags"><span class="pmr-tg ${tbt?'pmr-green':'pmr-red'}">TBT ${tbt?'✓':'—'}</span><span class="pmr-tg ${dpr?'pmr-green':'pmr-red'}">DPR ${dpr?'✓':'—'}</span>${extraCount?`<span class="pmr-tg" style="background:rgba(79,142,247,.2);color:#4f8ef7;">+${extraCount} extra</span>`:''}</div>`:'';
       const click=future?'':` onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;"`;
       return `<td><div class="pmr-cell ${cls}"${click}>${label}${tags}</div></td>`;
