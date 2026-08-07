@@ -3829,12 +3829,15 @@ const pids=peProjects[pe]||[];
       const extraSet=attByPEDay[pe+'|'+dk];
       const extraCount=extraSet?[...extraSet].filter(p=>!activePids.includes(p)).length:0;
       let cls,label;
+      const isSunday=d.getDay()===0;
       if(total===0){
         cls='pmr-grey';label='—';
       } else if(updated===0){
         if(onLeave){cls='pmr-teal';label=(leavesByPE[pe].get(dk)||'Leave');}
+        else if(isSunday){cls=future?'pmr-grey':'pmr-teal';label=future?'—':'Week-Off';}
         else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
       } else{cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
+      
       const tags=(updated>0)?`<div class="pmr-tags"><span class="pmr-tg ${tbt?'pmr-green':'pmr-red'}">TBT ${tbt?'✓':'—'}</span><span class="pmr-tg ${dpr?'pmr-green':'pmr-red'}">DPR ${dpr?'✓':'—'}</span>${extraCount?`<span class="pmr-tg" style="background:rgba(79,142,247,.2);color:#4f8ef7;">+${extraCount} extra</span>`:''}</div>`:'';
       const click=future?'':` onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;"`;
       return `<td><div class="pmr-cell ${cls}"${click}>${label}${tags}</div></td>`;
