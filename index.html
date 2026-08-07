@@ -2957,14 +2957,13 @@ if(fPE.size&&!fPE.has(lv(x,LEAD_COL.PE)))return false;
 const cells=days.map(d=>{
       const k=pid+'|'+pmrKey(d);
       const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
-      if(_vMs===null){
+
+  
+if(_vMs===null){
         return `<td><div class="pmr-cell pmr-grey" title="Vendor not finalized">—</div></td>`;
       }
       if(dMs<_vMs){
         return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
-      }
-      if(_closedMs!==null&&dMs===_closedMs){
-        return `<td><div class="pmr-cell pmr-closed" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">Project Closed</div></td>`;
       }
 if(_closedMs!==null&&dMs===_closedMs){
         return `<td><div class="pmr-cell pmr-closed" onclick="pmrShowDay('${pid.replace(/'/g,"\\'")}','${pmrKey(d)}')" style="cursor:pointer;">Project Closed</div></td>`;
@@ -2973,16 +2972,21 @@ if(_closedMs!==null&&dMs===_closedMs){
         return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       }
 const hv=d<=today?_dayInHold(d):null;
+
+  
       let holdDayCount=null;
       if(hv&&hv.start){
         const s0=new Date(hv.start.getFullYear(),hv.start.getMonth(),hv.start.getDate()).getTime();
         holdDayCount=Math.round((d.getTime()-s0)/86400000)+1;
       }
-      const c=hv?{cls:'pmr-hold',label:'On Hold'+(holdDayCount?' - '+holdDayCount:''),sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+const c=hv?{cls:'pmr-hold',label:'On Hold'+(holdDayCount?' - '+holdDayCount:''),sub:hv.remark?hv.remark.slice(0,18):'',tags:''}:pmrEvalCell(attIdx[k],tbtIdx[k],d,today);
+      if(_closedMs!==null&&dMs===_closedMs){c.cls=c.cls+' pmr-closed';c.label=c.label+' (Completed)';}
       
       const inInstall=pcDays.has(pmrKey(d));
   
       let labelHtml=c.label;
+
+  
       if(c.remark){
         const rk=(pid+'|'+pmrKey(d)).replace(/'/g,"\\'");
         _pmrRemarks[pid+'|'+pmrKey(d)]={remark:c.remark,proj:pname,date:fmtDate(d),title:(c.label+(c.sub?' '+c.sub:''))};
