@@ -2832,8 +2832,11 @@ function pmrShowProjectSummary(pid,pname){
     if(prow)ownerEmail=v(prow,peEmailIdx).toLowerCase().trim();
   }
 
-  let notUpdated=0,onsite=0,without=0,noact=0,ownerUpdates=0,othersUpdates=0,tbtCnt=0,dprCnt=0,consideredDays=0;
-  const taskSet=new Set();
+  let notUpdated=0,onsite=0,without=0,noact=0,tbtCnt=0,dprCnt=0,consideredDays=0;
+  const peEmailIdx2=ci(D.pe.h,'Mailid','email','mail');
+  const emailToPEName={};
+  if(peEmailIdx2>=0)D.pe.r.forEach(x=>{const em=v(x,peEmailIdx2).toLowerCase().trim();if(em)emailToPEName[em]=v(x,1)||em;});
+  const peDayMap={}; // email -> {name, dates:[]}
 
   for(let dd=1;dd<=daysInMonth;dd++){
     const dateObj=new Date(yy,mm-1,dd);
@@ -2843,8 +2846,6 @@ function pmrShowProjectSummary(pid,pname){
     const rows=ctx.attByPD[pid+'|'+dk];
     const t=ctx.tbtByPD[pid+'|'+dk];
     if(t){if(t.tbt)tbtCnt++;if(t.dpr)dprCnt++;}
-    const dList=ctx.dprByPD[pid+'|'+dk];
-    if(dList)dList.forEach(it=>{if(it.plan)taskSet.add(it.plan);});
 
     if(!rows||!rows.length){notUpdated++;continue;}
     let chosen=null,mNorm='';
@@ -2854,8 +2855,14 @@ function pmrShowProjectSummary(pid,pname){
     else if(mNorm==='no activity')noact++;
 
     const chosenEmail=(v(chosen,ATT_COL.EMAIL)||'').toLowerCase().trim();
-    if(ownerEmail&&chosenEmail===ownerEmail)ownerUpdates++;
-    else othersUpdates++;
+    if(chosenEmail){
+      const nm=emailToPEName[chosenEmail]||chosenEmail;
+      if(!peDayMap[chosenEmail])peDayMap[chosenEmail]={name:nm,dates:[],onsite:0,without:0,noact:0};
+      peDayMap[chosenEmail].dates.push(dateObj);
+      if(mNorm==='onsite visit')peDayMap[chosenEmail].onsite++;
+      else if(mNorm==='without visit update')peDayMap[chosenEmail].without++;
+      else if(mNorm==='no activity')peDayMap[chosenEmail].noact++;
+    }
   }
 
   const updatedDays=onsite+without+noact;
@@ -2868,15 +2875,23 @@ function pmrShowProjectSummary(pid,pname){
     metric('ti-clipboard-check','TBT Updated',tbtCnt,'Days','#34c98a')+
     metric('ti-file-report','DPR Updated',dprCnt,'Days','#3bc0d8');
 
-  const cardsTab2=
-    metric('ti-list-check','Tasks Updated',taskSet.size,'Distinct workplan items','#4f8ef7')+
-    metric('ti-user-check','Project Owner Updates',ownerUpdates,pemrEsc(ownerName)||'No PE assigned','#34c98a')+
-    metric('ti-users','Others Updated',othersUpdates,'By other PEs','#9b6dff')+
-    metric('ti-calendar','Total Days',consideredDays,monthLabel,'#4f8ef7')+
-    metric('ti-map-pin','Onsite Visit',onsite,'Days','#34c98a')+
-    metric('ti-clipboard','Without Visit',without,'Days','#3bc0d8')+
-    metric('ti-alert-triangle','No Activity',noact,'Days','#f5a623')+
-    metricWithBar('ti-calendar-x','Not Updated',notUpdated,`${consideredDays?Math.round(notUpdated/consideredDays*100):0}%`,'#e74c3c',consideredDays?notUpdated/consideredDays*100:0,'#e74c3c');
+  const peRows=Object.values(peDayMap).sort((a,b)=>b.dates.length-a.dates.length);
+  const peTableBody=peRows.map(p=>{
+    const sorted=[...p.dates].sort((a,b)=>a-b);
+    const from=fmtDate(sorted[0]),to=fmtDate(sorted[sorted.length-1]);
+    return `<tr>
+      <td style="font-weight:500;">${pemrEsc(p.name)}</td>
+      <td style="font-size:11px;white-space:nowrap;">${from}</td>
+      <td style="font-size:11px;white-space:nowrap;">${to}</td>
+      <td style="text-align:right;font-weight:600;color:#34c98a;">${p.dates.length}</td>
+      <td style="text-align:center;color:#34c98a;">${p.onsite||'—'}</td>
+      <td style="text-align:center;color:#3bc0d8;">${p.without||'—'}</td>
+      <td style="text-align:center;color:#f5a623;">${p.noact||'—'}</td>
+    </tr>`;
+  }).join('');
+  const cardsTab2=peRows.length
+    ? `<div class="table-wrap" style="grid-column:1/-1;"><table style="font-size:12px;width:100%;"><thead><tr><th>PE</th><th>From</th><th>To</th><th style="text-align:right;">Total Days</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without Visit</th><th style="text-align:center;">No Activity</th></tr></thead><tbody>${peTableBody}</tbody></table></div>`
+    : '<div class="empty" style="grid-column:1/-1;">No attendance updates this month.</div>';
 
   const tabBar=`<div style="display:flex;gap:6px;margin:10px 0;background:var(--bg2);border-radius:8px;padding:4px;width:fit-content;">
     <button onclick="pmrProjSetTab(1)" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pmrProjTab===1?'var(--accent)':'transparent'};color:${_pmrProjTab===1?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Monthly Overview</button>
@@ -2884,7 +2899,6 @@ function pmrShowProjectSummary(pid,pname){
   </div>`;
 
   const content=_pmrProjTab===2?cardsTab2:cardsTab1;
-
   let ov=document.getElementById('pemr-modal-ov');
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
   ov.innerHTML=`<div class="pmr-modal" style="max-width:760px;max-height:88vh;display:flex;flex-direction:column;">
@@ -2893,7 +2907,7 @@ function pmrShowProjectSummary(pid,pname){
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
     </div>
     ${tabBar}
-    <div class="metrics" style="margin-top:8px;overflow:auto;">${content}</div>
+    <div style="margin-top:8px;overflow:auto;" class="${_pmrProjTab===1?'metrics':''}">${content}</div>
   </div>`;
   ov.style.display='flex';
 }
