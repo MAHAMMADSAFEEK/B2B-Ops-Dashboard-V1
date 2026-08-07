@@ -3392,6 +3392,7 @@ function pemrShowPE(peName){
   const leavesSet=(ctx.leavesByPE&&ctx.leavesByPE[peName])||new Set();
   let daysUpdated=0,projUpdates=0,tbtCnt=0,dprCnt=0,leaveCount=0;
   const missed=[],leaveDates=[];
+  let weekOffCount=0;const weekOffDates=[];
   for(let dd=1;dd<=expectedDays;dd++){
     const dk=yy+'-'+mm+'-'+dd;
     if(leavesSet.has(dk)){leaveCount++;leaveDates.push(dd);continue;}
@@ -3401,10 +3402,15 @@ function pemrShowPE(peName){
       if(ctx.attByPD[key]){anyToday=true;projUpdates++;}
       const t=ctx.tbtByPD[key];if(t){if(t.tbt)tbtCnt++;if(t.dpr)dprCnt++;}
     });
-    if(anyToday)daysUpdated++; else missed.push(dd);
+    if(anyToday)daysUpdated++;
+    else{
+      const dObj=new Date(yy,mm-1,dd);
+      if(dObj.getDay()===0){weekOffCount++;weekOffDates.push(dd);}
+      else missed.push(dd);
+    }
   }
   // Effective expected days = elapsed - leaves
-  const effExpected=Math.max(0,expectedDays-leaveCount);
+  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount);
   const total=pids.length;
   const expectedProjUpdates=effExpected*total;
   const attPct=effExpected?Math.round(daysUpdated/effExpected*100):0;
@@ -3423,6 +3429,10 @@ function pemrShowPE(peName){
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const missedChips=missed.map(dd=>{const dt=new Date(yy,mm-1,dd);return `<span style="font-size:11px;background:rgba(231,76,60,.14);color:#ff7a6b;border:1px solid rgba(231,76,60,.3);border-radius:6px;padding:3px 8px;">${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · ${wd[dt.getDay()]}</span>`;}).join('');
   const leaveChips=leaveDates.map(dd=>{const dt=new Date(yy,mm-1,dd);return `<span style="font-size:11px;background:rgba(56,178,210,.14);color:#3bc0d8;border:1px solid rgba(56,178,210,.3);border-radius:6px;padding:3px 8px;">${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · ${wd[dt.getDay()]}</span>`;}).join('');
+  const weekOffChips=weekOffDates.map(dd=>{const dt=new Date(yy,mm-1,dd);return `<span style="font-size:11px;background:rgba(155,109,255,.14);color:#b79cff;border:1px solid rgba(155,109,255,.3);border-radius:6px;padding:3px 8px;">${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · Sun</span>`;}).join('');
+  const weekOffSection=weekOffDates.length
+    ? `<div style="margin-top:14px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Week-Off Sundays (${weekOffDates.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${weekOffChips}</div></div>`
+    : '';
   const missedSection=missed.length
     ? `<div style="margin-top:16px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Not Updated Dates (${missed.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${missedChips}</div></div>`
     : (effExpected?`<div style="margin-top:16px;font-size:12px;color:#34c98a;">✓ All ${effExpected} expected day(s) updated.</div>`:'');
@@ -3478,7 +3488,9 @@ function pemrShowPE(peName){
 
   const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
     ${missedSection}
+    ${weekOffSection}
     ${leaveSection}
+    
     <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave) × ${total} project(s). Leave dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
     :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>';
 
@@ -4005,7 +4017,7 @@ function renderPEMRPESummary(){
     });
     if(anyToday)daysUpdated++; else missed.push(dd);
   }
-  const effExpected=Math.max(0,expectedDays-leaveCount);
+  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount);
   const total=pids.length;
   const expectedProjUpdates=effExpected*total;
   const attPct=effExpected?Math.round(daysUpdated/effExpected*100):0;
@@ -4018,6 +4030,7 @@ function renderPEMRPESummary(){
     metricWithBar('ti-calendar-check','Days Updated',daysUpdated,`${attPct}% of expected days`,'#34c98a',attPct,'#34c98a')+
     metricWithBar('ti-calendar-x','Days Not Updated',missed.length,`${effExpected?Math.round(missed.length/effExpected*100):0}% of expected days`,'#e74c3c',effExpected?missed.length/effExpected*100:0,'#e74c3c')+
     metric('ti-beach','Total Leave Days',leaveCount,leaveCount?'Approved leaves':'No leaves','#3bc0d8')+
+    metric('ti-calendar-off','Week-Off (Sundays)',weekOffCount,weekOffCount?'Auto Sunday off':'None','#9b6dff')+
     metricWithBar('ti-checklist','Project Updates',projUpdates,`of ${expectedProjUpdates} expected · ${updPct}%`,'#f5a623',updPct,'#f5a623')+
     metric('ti-clipboard-check','TBT Updated',tbtCnt,`of ${expectedProjUpdates} expected`,'#34c98a')+
     metric('ti-file-report','DPR Updated',dprCnt,`of ${expectedProjUpdates} expected`,'#3bc0d8');
