@@ -3470,12 +3470,11 @@ function pemrShowPE(peName){
     const s=(ctx.attByPEDay&&ctx.attByPEDay[peName+'|'+dk]);
     if(s)s.forEach(p=>{if(!pids.includes(p))extraPidsAll.add(p);});
   }
-  const allProjPids=[...pids,...extraPidsAll];
-  const projRowsHtml=allProjPids.map(pid=>{
+// Project row builder (reused for assigned + additional tables)
+  const _pemrProjRow=(pid,isExtra)=>{
     const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
     const nm=ctx.projName[pid]||pid;
     const size=row?(lv(row,LEAD_COL.SIZE)||'—'):'—';
-    const isExtra=extraPidsAll.has(pid);
     let statusBadge='—';
     if(row){
       const h=povHoldInfo(row);
@@ -3492,17 +3491,24 @@ function pemrShowPE(peName){
     const m2=computeProjectMetrics(pid);
     const tat=m2.tat!==null?m2.tat+'d':'—';
     const escId=pid.replace(/'/g,"\\'"),escName=nm.replace(/'/g,"\\'");
+    const flag=isExtra?' <span class="badge" style="background:rgba(245,166,35,.18);color:#f5a623;border:1px solid rgba(245,166,35,.4);font-size:9px;">➕ Additional</span>':'';
     return `<tr>
-      <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(nm)}${isExtra?' <span class="badge" style="background:rgba(79,142,247,.15);color:#4f8ef7;border:1px solid rgba(79,142,247,.3);font-size:9px;">Additional</span>':''}<div style="font-size:9px;color:var(--muted);">${pemrEsc(pid)}</div></td>
+      <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(nm)}${flag}<div style="font-size:9px;color:var(--muted);">${pemrEsc(pid)}</div></td>
       <td style="text-align:right;font-size:12px;">${size}</td>
       <td>${statusBadge}</td>
       <td style="text-align:right;font-size:12px;">${tat}</td>
     </tr>`;
-  }).join('');
-  const projTable=allProjPids.length
-    ? `<div class="table-wrap" style="max-height:50vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${projRowsHtml}</tbody></table></div>`
-    : '<div class="empty">No projects.</div>';
-  const projSummaryLine=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Assigned: <b style="color:var(--text);">${pids.length}</b>${extraPidsAll.size?` · Additional this month: <b style="color:#4f8ef7;">${extraPidsAll.size}</b>`:''} · Total: <b style="color:var(--text);">${allProjPids.length}</b></div>`;
+  };
+  const extraArr=[...extraPidsAll];
+  const assignedRowsHtml=pids.map(pid=>_pemrProjRow(pid,false)).join('');
+  const extraRowsHtml=extraArr.map(pid=>_pemrProjRow(pid,true)).join('');
+  const projTable=pids.length
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 6px;">Assigned Projects (${pids.length})</div><div class="table-wrap" style="max-height:38vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${assignedRowsHtml}</tbody></table></div>`
+    : '<div class="empty">No assigned projects.</div>';
+  const extraTable=extraArr.length
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#f5a623;margin:16px 0 6px;display:flex;align-items:center;gap:6px;"><i class="ti ti-plus"></i> Additional Projects Updated This Month (${extraArr.length})</div><div class="table-wrap" style="max-height:30vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${extraRowsHtml}</tbody></table></div>`
+    : '';
+  const projSummaryLine=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Assigned: <b style="color:var(--text);">${pids.length}</b>${extraArr.length?` · Additional this month: <b style="color:#f5a623;">${extraArr.length}</b>`:''} · Total: <b style="color:var(--text);">${pids.length+extraArr.length}</b></div>`;
 
   const tabBar=`<div style="display:flex;gap:6px;margin:10px 0;background:var(--bg2);border-radius:8px;padding:4px;width:fit-content;">
     <button onclick="pemrPESetView('summary')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrPEView==='summary'?'var(--accent)':'transparent'};color:${_pemrPEView==='summary'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Attendance Summary</button>
