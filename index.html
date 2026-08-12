@@ -291,7 +291,8 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     <button class="tab" onclick="switchTab('pmr',this)"><i class="ti ti-calendar-month"></i> Project wise Monthly report</button>
     <button class="tab" onclick="switchTab('pemr',this)"><i class="ti ti-user-check"></i> PE Monthly Report</button>
     <button class="tab" onclick="switchTab('vmr',this)"><i class="ti ti-building-store"></i> Vendor Monthly Report</button>
-    <button class="tab" onclick="switchTab('map',this)"><i class="ti ti-map-2"></i> Project Map</button>
+   <button class="tab" onclick="switchTab('map',this)"><i class="ti ti-map-2"></i> Project Map</button>
+    <button class="tab" onclick="switchTab('cmp',this)"><i class="ti ti-git-compare"></i> Count Compare</button>
   </div>
 
   <!-- PROJECT OVERVIEW TAB -->
@@ -690,7 +691,28 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     </div>
   </div>
 
+  <!-- COUNT COMPARE TAB -->
+  <div id="tab-cmp" class="tab-content">
+    <div style="padding:20px 24px 0;">
+      <div class="section-title">Project Completed vs Project Closed — Reconciliation</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
+        <b style="color:#0d9488;">Project Completed</b> (Overview card) counts every project where all required workplan items are done.
+        <b style="color:#4f8ef7;">Project Closed</b> (Project Stage Status) counts the same, but only if the project also has a PE, a finalized vendor, and is not On Hold / Cancelled.
+        The projects below are <b>done but excluded</b> from "Project Closed" — that is the gap. Uses the same filters selected on the Project Overview tab.
+      </div>
+      <div class="metrics" id="cmp-metrics"></div>
+    </div>
+    <div style="padding:0 24px 20px;">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-git-compare"></i> Difference — Completed but not "Project Closed"</div>
+        <div class="table-wrap"><table><thead id="cmp-head"></thead><tbody id="cmp-body"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
   <!-- PROJECT SUMMARY TAB -->
+
+  
   <div id="tab-proj" class="tab-content">
     <div class="section-title">Project Summary</div>
     <div class="card">
@@ -840,7 +862,8 @@ function parseSheet(gid){return new Promise((res,rej)=>{
 });}
 function setOverlay(txt){document.getElementById('overlay-txt').textContent=txt;}
 function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');if(name==='map'){setTimeout(()=>{buildProjMap();if(_projMap)_projMap.invalidateSize();},50);}
-if(name==='nur'){buildNUR();}}
+if(name==='nur'){buildNUR();}
+if(name==='cmp'){buildCMP();}}
 function fillSel(id,vals){const s=document.getElementById(id);if(!s)return;const cur=s.value;while(s.options.length>1)s.remove(1);[...new Set(vals)].filter(Boolean).sort().forEach(val=>{const o=document.createElement('option');o.value=val;o.textContent=val;if(val===cur)o.selected=true;s.appendChild(o);});}
 function metric(icon,lbl,val,sub,color){return `<div class="metric" style="--mc:${color}"><div class="micon"><i class="ti ${icon}"></i></div><div class="mlbl">${lbl}</div><div class="mval">${val}</div>${sub?`<div class="msub">${sub}</div>`:''}</div>`;}
 function metricWithBar(icon,lbl,val,sub,color,pct,barColor){
@@ -6224,6 +6247,69 @@ function downloadNURCSV(){
   URL.revokeObjectURL(url);
 }
 
+
+  function buildCMP(){
+  const rows=povGetBaseRows();
+  const done=[];
+  rows.forEach(x=>{
+    const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+    if(m.status!=='done')return;
+    const h=povHoldInfo(x);
+    const tag=povProjectStatuses(x)[0];
+    let reason='Project Closed';
+    if(h.cancelled)reason='Cancelled';
+    else if(h.onHold)reason='On Hold';
+    else if(!lv(x,LEAD_COL.PE))reason='Not Assigned (no PE)';
+    else if(!vendorFinalizeDate(x))reason='Vendor Not Finalized';
+    done.push({
+      pid:lv(x,LEAD_COL.PID),
+      name:lv(x,LEAD_COL.PNAME)||lv(x,LEAD_COL.PID),
+      city:lv(x,LEAD_COL.CITY)||'—',
+      pe:lv(x,LEAD_COL.PE)||'',
+      vendor:vendorFinalizeDate(x)?'Yes':'No',
+      hold:h.onHold,
+      cancel:h.cancelled,
+      tag,reason,
+      closed:reason==='Project Closed'
+    });
+  });
+  const totalDone=done.length;
+  const closed=done.filter(d=>d.closed).length;
+  const mismatch=done.filter(d=>!d.closed);
+  const diff=totalDone-closed;
+
+  const met=document.getElementById('cmp-metrics');
+  if(met)met.innerHTML=
+    metric('ti-circle-check','Project Completed (card)',totalDone,'m.status = done','#0d9488')+
+    metric('ti-sun','Project Closed (stage)',closed,'passes all gates','#4f8ef7')+
+    metric('ti-git-compare','Difference',diff,diff===0?'reconciled':'done but not Closed','#e74c3c');
+
+  const body=document.getElementById('cmp-body');
+  const head=document.getElementById('cmp-head');
+  if(head)head.innerHTML='<tr><th>#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PE</th><th>Vendor Finalized</th><th>On Hold</th><th>Cancelled</th><th>Reason it isn\'t "Project Closed"</th></tr>';
+  if(body){
+    if(!mismatch.length){
+      body.innerHTML='<tr><td colspan="9" class="empty">No difference — both counts reconcile 🎉</td></tr>';
+    }else{
+      body.innerHTML=mismatch.map((d,i)=>{
+        const rc={'Cancelled':'#e0518a','On Hold':'#9b6dff','Not Assigned (no PE)':'#e74c3c','Vendor Not Finalized':'#8b92b0'}[d.reason]||'#8b92b0';
+        const escId=d.pid.replace(/'/g,"\\'"),escName=d.name.replace(/'/g,"\\'");
+        return `<tr>
+          <td style="color:var(--muted)">${i+1}</td>
+          <td><span class="badge bp">${d.pid}</span></td>
+          <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(d.name)}</td>
+          <td style="font-size:12px;">${pemrEsc(d.city)}</td>
+          <td style="font-size:12px;">${d.pe?pemrEsc(d.pe):'<span style="color:#e74c3c;">Not Assigned</span>'}</td>
+          <td>${d.vendor==='Yes'?'<span class="badge bg">Yes</span>':'<span class="badge br">No</span>'}</td>
+          <td>${d.hold?'<span class="badge bp">Yes</span>':'<span style="color:var(--muted);">—</span>'}</td>
+          <td>${d.cancel?'<span class="badge br">Yes</span>':'<span style="color:var(--muted);">—</span>'}</td>
+          <td><span class="badge" style="background:${rc}22;color:${rc};border:1px solid ${rc}55;font-weight:600;">${d.reason}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+}
+  
   
 loadAll();
 
