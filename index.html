@@ -3471,6 +3471,45 @@ function pemrShowPE(peName){
     if(s)s.forEach(p=>{if(!pids.includes(p))extraPidsAll.add(p);});
   }
 // Project row builder (reused for assigned + additional tables)
+// Per-project stats for the PE within the selected month (elapsed days)
+  const _pemrProjStats=(pid,isExtra)=>{
+    const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
+    const h=row?povHoldInfo(row):null;
+    const m=computeProjectMetrics(pid);
+    const vFin=row?vendorFinalizeDate(row):null;
+    const closeMs=(m.status==='done'&&m.lastAttDate)?new Date(m.lastAttDate.getFullYear(),m.lastAttDate.getMonth(),m.lastAttDate.getDate()).getTime():null;
+    const prio=mm2=>({'onsite visit':4,'without visit update':3,'no activity':2})[mm2]||(mm2?1:0);
+    let expected=0,updated=0,tbtDpr=0,noAct=0;
+    for(let dd=1;dd<=expectedDays;dd++){
+      const dk=yy+'-'+mm+'-'+dd;
+      const dObj=new Date(yy,mm-1,dd);
+      const dMs=new Date(yy,mm-1,dd).getTime();
+      const rows=ctx.attByPEPD[peName+'|'+pid+'|'+dk];
+      const isUpd=rows&&rows.length;
+      if(isUpd){
+        updated++;
+        const t=ctx.tbtByPD[pid+'|'+dk];
+        if(t&&t.tbt&&t.dpr)tbtDpr++;
+        let chosen=null,mNorm='';
+        rows.forEach(r=>{const mv=v(r,ATT_COL.M).toLowerCase();if(!chosen||prio(mv)>prio(mNorm)){chosen=r;mNorm=mv;}});
+        if(mNorm==='no activity')noAct++;
+      }
+      if(!isExtra){
+        if(leavesSet.has(dk))continue;
+        if(dObj.getDay()===0)continue;
+        if(!vFin)continue;
+        if(h){
+          if(h.cancelled&&h.cancelDate&&dMs>=new Date(h.cancelDate.getFullYear(),h.cancelDate.getMonth(),h.cancelDate.getDate()).getTime())continue;
+          const inHold=h.holdIntervals.some(iv=>{if(!iv.start)return false;const s=new Date(iv.start.getFullYear(),iv.start.getMonth(),iv.start.getDate()).getTime();const e=iv.end?new Date(iv.end.getFullYear(),iv.end.getMonth(),iv.end.getDate()).getTime():today.getTime();return dMs>=s&&dMs<=e;});
+          if(inHold)continue;
+        }
+        if(closeMs!==null&&dMs>closeMs)continue;
+        expected++;
+      }
+    }
+    return {expected:isExtra?null:expected,updated,tbtDpr,noAct,noUpdate:isExtra?null:Math.max(0,expected-updated)};
+  };
+
   const _pemrProjRow=(pid,isExtra)=>{
     const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
     const nm=ctx.projName[pid]||pid;
@@ -3488,25 +3527,30 @@ function pemrShowPE(peName){
         else statusBadge='<span class="badge bo">On Going</span>';
       }
     }
-    const m2=computeProjectMetrics(pid);
-    const tat=m2.tat!==null?m2.tat+'d':'—';
+    const st=_pemrProjStats(pid,isExtra);
     const escId=pid.replace(/'/g,"\\'"),escName=nm.replace(/'/g,"\\'");
     const flag=isExtra?' <span class="badge" style="background:rgba(245,166,35,.18);color:#f5a623;border:1px solid rgba(245,166,35,.4);font-size:9px;">➕ Additional</span>':'';
+    const dash='<span style="color:var(--muted);">—</span>';
     return `<tr>
       <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(nm)}${flag}<div style="font-size:9px;color:var(--muted);">${pemrEsc(pid)}</div></td>
       <td style="text-align:right;font-size:12px;">${size}</td>
       <td>${statusBadge}</td>
-      <td style="text-align:right;font-size:12px;">${tat}</td>
+      <td style="text-align:right;font-size:12px;">${st.expected===null?dash:st.expected}</td>
+      <td style="text-align:right;font-size:12px;">${st.updated?`<b style="color:#34c98a;">${st.updated}</b>`:dash}</td>
+      <td style="text-align:center;font-size:12px;color:${st.tbtDpr?'#34c98a':'var(--muted)'};">${st.tbtDpr||'—'}</td>
+      <td style="text-align:center;font-size:12px;color:${st.noAct?'#f5a623':'var(--muted)'};">${st.noAct||'—'}</td>
+      <td style="text-align:right;font-size:12px;">${st.noUpdate===null?dash:(st.noUpdate?`<b style="color:#e74c3c;">${st.noUpdate}</b>`:'—')}</td>
     </tr>`;
   };
+  const _pemrProjHead='<tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">Expected Days</th><th style="text-align:right;">Updated Days</th><th style="text-align:center;">TBT &amp; DPR</th><th style="text-align:center;">No Activity</th><th style="text-align:right;">No Update</th></tr>';
   const extraArr=[...extraPidsAll];
   const assignedRowsHtml=pids.map(pid=>_pemrProjRow(pid,false)).join('');
   const extraRowsHtml=extraArr.map(pid=>_pemrProjRow(pid,true)).join('');
   const projTable=pids.length
-    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 6px;">Assigned Projects (${pids.length})</div><div class="table-wrap" style="max-height:38vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${assignedRowsHtml}</tbody></table></div>`
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 6px;">Assigned Projects (${pids.length})</div><div class="table-wrap" style="max-height:38vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead>${_pemrProjHead}</thead><tbody>${assignedRowsHtml}</tbody></table></div>`
     : '<div class="empty">No assigned projects.</div>';
   const extraTable=extraArr.length
-    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#f5a623;margin:16px 0 6px;display:flex;align-items:center;gap:6px;"><i class="ti ti-plus"></i> Additional Projects Updated This Month (${extraArr.length})</div><div class="table-wrap" style="max-height:30vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead><tr><th>Project</th><th style="text-align:right;">Size</th><th>Status</th><th style="text-align:right;">TAT</th></tr></thead><tbody>${extraRowsHtml}</tbody></table></div>`
+    ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#f5a623;margin:16px 0 6px;display:flex;align-items:center;gap:6px;"><i class="ti ti-plus"></i> Additional Projects Updated This Month (${extraArr.length}) — expected not tracked, counts only</div><div class="table-wrap" style="max-height:30vh;overflow:auto;"><table style="font-size:12px;width:100%;"><thead>${_pemrProjHead}</thead><tbody>${extraRowsHtml}</tbody></table></div>`
     : '';
   const projSummaryLine=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Assigned: <b style="color:var(--text);">${pids.length}</b>${extraArr.length?` · Additional this month: <b style="color:#f5a623;">${extraArr.length}</b>`:''} · Total: <b style="color:var(--text);">${pids.length+extraArr.length}</b></div>`;
 
