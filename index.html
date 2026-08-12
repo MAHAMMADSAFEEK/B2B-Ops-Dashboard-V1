@@ -3515,7 +3515,24 @@ function pemrShowPE(peName){
     <button onclick="pemrPESetView('projects')" style="font-size:12px;padding:6px 14px;border-radius:6px;border:none;background:${_pemrPEView==='projects'?'var(--accent)':'transparent'};color:${_pemrPEView==='projects'?'#fff':'var(--muted)'};cursor:pointer;font-weight:600;">Project-wise</button>
   </div>`;
 
+// Actual (assigned) vs Extra (additional) work insight
+  const insAssignedPids=new Set(), insExtraPids=new Set();
+  let insDaysWorked=0, insAssignedUpdates=0, insExtraUpdates=0;
+  for(let dd=1;dd<=expectedDays;dd++){
+    const dk=yy+'-'+mm+'-'+dd;
+    let aToday=0,eToday=0;
+    pids.forEach(pid=>{const r=ctx.attByPEPD[peName+'|'+pid+'|'+dk];if(r&&r.length){aToday++;insAssignedUpdates++;insAssignedPids.add(pid);}});
+    const daySet=ctx.attByPEDay&&ctx.attByPEDay[peName+'|'+dk];
+    if(daySet)daySet.forEach(pid=>{if(!pids.includes(pid)){eToday++;insExtraUpdates++;insExtraPids.add(pid);}});
+    if(aToday||eToday)insDaysWorked++;
+  }
+  const insightBlock=`<div class="card" style="margin-top:14px;">
+    <div class="card-title"><i class="ti ti-chart-bar"></i> Work Insight — Actual vs Extra</div>
+    <div style="font-size:13px;color:var(--text);line-height:1.7;">Worked on <b style="color:#34c98a;">${insDaysWorked}</b> day(s) this month · updated <b style="color:#4f8ef7;">${insAssignedPids.size}</b> assigned project(s) (<b>${insAssignedUpdates}</b> project-day updates) and <b style="color:#f5a623;">${insExtraPids.size}</b> additional project(s) (<b>${insExtraUpdates}</b> project-day updates).</div>
+    <div class="metrics" style="margin-top:10px;">${metric('ti-calendar-check','Days Worked',insDaysWorked,'Assigned or extra','#34c98a')}${metric('ti-briefcase','Assigned Projects',insAssignedPids.size,`${insAssignedUpdates} project-day updates`,'#4f8ef7')}${metric('ti-plus','Extra Projects',insExtraPids.size,`${insExtraUpdates} project-day updates`,'#f5a623')}</div>
+  </div>`;
   const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
+    ${insightBlock}
     ${missedSection}
     ${weekOffSection}
     ${leaveSection}
@@ -3523,7 +3540,9 @@ function pemrShowPE(peName){
     <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave) × ${total} project(s). Leave dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
     :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>';
 
-  const bodyContent=_pemrPEView==='projects'?(projSummaryLine+projTable):summaryContent;
+  
+
+  const bodyContent=_pemrPEView==='projects'?(projSummaryLine+projTable+extraTable):summaryContent;
 
   let ov=document.getElementById('pemr-modal-ov');
   if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
