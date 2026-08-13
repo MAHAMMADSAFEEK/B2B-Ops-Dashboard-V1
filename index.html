@@ -3412,9 +3412,10 @@ function pemrShowPE(peName){
   else if(yy===today.getFullYear()&&(mm-1)===today.getMonth())expectedDays=Math.min(today.getDate(),daysInMonth);
   else expectedDays=daysInMonth;
 
-  const leavesSet=(ctx.leavesByPE&&ctx.leavesByPE[peName])||new Set();
-  let daysUpdated=0,projUpdates=0,tbtCnt=0,dprCnt=0,leaveCount=0;
-  const missed=[],leaveDates=[];
+const leavesSet=(ctx.leavesByPE&&ctx.leavesByPE[peName])||new Set();
+  const otherSet=(ctx.otherByPE&&ctx.otherByPE[peName])||new Set();
+  let daysUpdated=0,projUpdates=0,tbtCnt=0,dprCnt=0,leaveCount=0,otherCount=0;
+  const missed=[],leaveDates=[],otherDates=[];
   let weekOffCount=0;const weekOffDates=[];
   for(let dd=1;dd<=expectedDays;dd++){
     const dk=yy+'-'+mm+'-'+dd;
@@ -3426,28 +3427,30 @@ function pemrShowPE(peName){
       const t=ctx.tbtByPD[key];if(t){if(t.tbt)tbtCnt++;if(t.dpr)dprCnt++;}
     });
     if(anyToday)daysUpdated++;
+    else if(otherSet.has(dk)){otherCount++;otherDates.push(dd);}
     else{
       const dObj=new Date(yy,mm-1,dd);
       if(dObj.getDay()===0){weekOffCount++;weekOffDates.push(dd);}
       else missed.push(dd);
     }
   }
-  // Effective expected days = elapsed - leaves
-  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount);
+  // Effective expected days = elapsed - leaves - week-off - other task
+  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount-otherCount);
   const total=pids.length;
   const expectedProjUpdates=effExpected*total;
   const attPct=effExpected?Math.round(daysUpdated/effExpected*100):0;
   const updPct=expectedProjUpdates?Math.round(projUpdates/expectedProjUpdates*100):0;
 
-  const cards=
+const cards=
     metric('ti-briefcase','Total Projects',total,'Assigned to PE','#4f8ef7')+
-    metric('ti-calendar','Expected Days',effExpected,`${expectedDays} elapsed − ${leaveCount} leave · ${monthLabel}`,'#9b6dff')+
+    metric('ti-calendar','Expected Days',effExpected,`${expectedDays} elapsed − ${leaveCount} leave − ${otherCount} other · ${monthLabel}`,'#9b6dff')+
     metricWithBar('ti-calendar-check','Days Updated',daysUpdated,`${attPct}% of expected days`,'#34c98a',attPct,'#34c98a')+
     metricWithBar('ti-calendar-x','Not Updated',missed.length,`${effExpected?Math.round(missed.length/effExpected*100):0}% of expected days`,'#e74c3c',effExpected?missed.length/effExpected*100:0,'#e74c3c')+
     metric('ti-beach','Total Leave Days',leaveCount,leaveCount?'Approved leaves':'No leaves','#3bc0d8')+
+    metric('ti-checkbox','Other Task Days',otherCount,otherCount?'Excused (not absent)':'None','#3bc0d8')+
     metricWithBar('ti-checklist','Project Updates',projUpdates,`of ${expectedProjUpdates} expected · ${updPct}%`,'#f5a623',updPct,'#f5a623')+
-    metric('ti-clipboard-check','TBT Updated',tbtCnt,`of ${expectedProjUpdates} expected`,'#34c98a')+
-    metric('ti-file-report','DPR Updated',dprCnt,`of ${expectedProjUpdates} expected`,'#3bc0d8');
+    metric('ti-clipboard-check','TBT Updated',tbtCnt,'Days','#34c98a')+
+    metric('ti-file-report','DPR Updated',dprCnt,'Days','#3bc0d8');
 
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const missedChips=missed.map(dd=>{const dt=new Date(yy,mm-1,dd);return `<span style="font-size:11px;background:rgba(231,76,60,.14);color:#ff7a6b;border:1px solid rgba(231,76,60,.3);border-radius:6px;padding:3px 8px;">${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · ${wd[dt.getDay()]}</span>`;}).join('');
@@ -3459,8 +3462,12 @@ function pemrShowPE(peName){
   const missedSection=missed.length
     ? `<div style="margin-top:16px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Not Updated Dates (${missed.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${missedChips}</div></div>`
     : (effExpected?`<div style="margin-top:16px;font-size:12px;color:#34c98a;">✓ All ${effExpected} expected day(s) updated.</div>`:'');
-  const leaveSection=leaveDates.length
+const leaveSection=leaveDates.length
     ? `<div style="margin-top:14px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px;">Leave Dates (${leaveDates.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${leaveChips}</div></div>`
+    : '';
+  const otherChips=otherDates.map(dd=>{const dt=new Date(yy,mm-1,dd);return `<span style="font-size:11px;background:rgba(56,178,210,.14);color:#3bc0d8;border:1px solid rgba(56,178,210,.3);border-radius:6px;padding:3px 8px;">${dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} · ${wd[dt.getDay()]}</span>`;}).join('');
+  const otherSection=otherDates.length
+    ? `<div style="margin-top:14px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#3bc0d8;margin-bottom:8px;">Other Task Update Dates (${otherDates.length}) — excused, not counted absent</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${otherChips}</div></div>`
     : '';
 
 // ── Sub-view 2: Project-wise (assigned + additional, size/status/TAT) ──
@@ -3575,13 +3582,14 @@ function pemrShowPE(peName){
     <div style="font-size:13px;color:var(--text);line-height:1.7;">Worked on <b style="color:#34c98a;">${insDaysWorked}</b> day(s) this month · updated <b style="color:#4f8ef7;">${insAssignedPids.size}</b> assigned project(s) (<b>${insAssignedUpdates}</b> project-day updates) and <b style="color:#f5a623;">${insExtraPids.size}</b> additional project(s) (<b>${insExtraUpdates}</b> project-day updates).</div>
     <div class="metrics" style="margin-top:10px;">${metric('ti-calendar-check','Days Worked',insDaysWorked,'Assigned or extra','#34c98a')}${metric('ti-briefcase','Assigned Projects',insAssignedPids.size,`${insAssignedUpdates} project-day updates`,'#4f8ef7')}${metric('ti-plus','Extra Projects',insExtraPids.size,`${insExtraUpdates} project-day updates`,'#f5a623')}</div>
   </div>`;
-  const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
+const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards}</div>
     ${insightBlock}
     ${missedSection}
     ${weekOffSection}
     ${leaveSection}
+    ${otherSection}
     
-    <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave) × ${total} project(s). Leave dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
+    <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave − ${otherCount} other task) × ${total} project(s). Leave &amp; Other-Task dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
     :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>';
 
   
@@ -3666,9 +3674,9 @@ function pemrShowDateSummary(dk){
   pes.forEach(pe=>{
     const pids=ctx.peProjects[pe]||[];
     const onLeave=!!(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].has(dk));
+    const onOther=!!(ctx.otherByPE&&ctx.otherByPE[pe]&&ctx.otherByPE[pe].has(dk));
     if(onLeave) gOnLeave++;
-    const st={total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave,projects:[]};
-    pids.forEach(pid=>{
+    const st={total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave,onOther,projects:[]};    pids.forEach(pid=>{
       const row=D.lead.r.find(x=>lv(x,LEAD_COL.PID)===pid);
       if(row){
         const h=povHoldInfo(row);
@@ -3695,12 +3703,13 @@ function pemrShowDateSummary(dk){
     peStats[pe]=st;
   });
 
-let peUpd=0,peFull=0,pePart=0,pePend=0,peLeave=0,peWO=0,peNotAssigned=0,peNothingToUpdate=0;
+let peUpd=0,peFull=0,pePart=0,pePend=0,peLeave=0,peWO=0,peNotAssigned=0,peNothingToUpdate=0,peOther=0;
   const peCat={};
   pes.forEach(pe=>{
     const st=peStats[pe];
     const leaveVal=(ctx.leavesByPE&&ctx.leavesByPE[pe]&&ctx.leavesByPE[pe].get)?(ctx.leavesByPE[pe].get(dk)||''):'';
     if(st.onLeave){if(String(leaveVal).toLowerCase().indexOf('week')>=0){peWO++;peCat[pe]='weekoff';}else{peLeave++;peCat[pe]='leave';}return;}
+    if(st.onOther&&st.updated===0){peOther++;peCat[pe]='other';return;}
     const pids=ctx.peProjects[pe]||[];
     if(!pids.length){peNotAssigned++;peCat[pe]='notassigned';return;}
     if(st.total===0){peNothingToUpdate++;peCat[pe]='nothingtoupdate';return;}
@@ -3714,7 +3723,8 @@ const cards=
     metric('ti-users','Total PEs',pes.length,'In current view','#4f8ef7')+
     cardBtn('notassigned',metric('ti-user-off','Not Assigned Yet',peNotAssigned,'No projects','#8b92b0'))+
     cardBtn('leave',metric('ti-beach','On Leave',peLeave,'PEs','#3bc0d8'))+
-    cardBtn('weekoff',metric('ti-calendar-off','Week-Off',peWO,'PEs','#9b6dff'))+
+cardBtn('weekoff',metric('ti-calendar-off','Week-Off',peWO,'PEs','#9b6dff'))+
+    cardBtn('other',metric('ti-checkbox','Other Task',peOther,'Other task update','#3bc0d8'))+
     cardBtn('nothingtoupdate',metric('ti-circle-check','Project Completed',peNothingToUpdate,'All projects done/hold/cancelled','#0d9488'))+
     cardBtn('tobeupdate',metric('ti-list-check','To Be Updated',peToBeUpdate,'PEs with active projects','#f5a623'))+
     cardBtn('upd',metricWithBar('ti-user-check','Updated',peUpd,`Full ${peFull} · Partial ${pePart} · ${peToBeUpdate?Math.round(peUpd/peToBeUpdate*100):0}%`,'#34c98a',peToBeUpdate?peUpd/peToBeUpdate*100:0,'#34c98a'))+
@@ -3760,6 +3770,7 @@ const cards=
           const peKey=cmKey+'|p:'+pe, st=peStats[pe]||zero(), peExp=_pemrDateExp.has(peKey);
           let peStatus='';
           if(st.onLeave)peStatus='<span class="badge bb">🏖 Leave</span>';
+          else if(st.onOther&&st.updated===0)peStatus='<span class="badge bb">Other Task</span>';
           else if(st.total===0)peStatus='<span class="badge bgr">—</span>';
           else if(st.updated===0)peStatus='<span class="badge br">Absent</span>';
           else if(st.updated>=st.total)peStatus='<span class="badge bg">All Updated</span>';
@@ -3791,35 +3802,42 @@ const cards=
   // ── PE-WISE FLAT VIEW ──
   function renderFlat(){
     const rows=pesView.map(pe=>{
-      const st=peStats[pe]||{total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave:false};
+      const st=peStats[pe]||{total:0,updated:0,pending:0,onsite:0,without:0,noact:0,onLeave:false,onOther:false};
       let statusKey='none';
       if(st.onLeave)statusKey='leave';
+      else if(st.onOther&&st.updated===0)statusKey='other';
       else if(st.total===0)statusKey='none';
       else if(st.updated===0)statusKey='absent';
       else if(st.updated>=st.total)statusKey='full';
       else statusKey='partial';
       return{pe,st,statusKey,cluster:ctx.peClusterMap[pe]||'—',cityMgr:ctx.peCityMgrMap[pe]||'—'};
     }).sort((a,b)=>{
-      const ord={full:0,partial:1,absent:2,leave:3,none:4};
+      const ord={full:0,partial:1,absent:2,other:3,leave:4,none:5};
+      
       if(ord[a.statusKey]!==ord[b.statusKey])return ord[a.statusKey]-ord[b.statusKey];
       if(b.st.updated!==a.st.updated)return b.st.updated-a.st.updated;
       return a.pe.localeCompare(b.pe);
     });
-    let fullN=0,partialN=0,absentN=0,leaveN=0;
-    rows.forEach(r=>{if(r.statusKey==='full')fullN++;else if(r.statusKey==='partial')partialN++;else if(r.statusKey==='absent')absentN++;else if(r.statusKey==='leave')leaveN++;});
+let fullN=0,partialN=0,absentN=0,leaveN=0,otherN=0;
+    rows.forEach(r=>{if(r.statusKey==='full')fullN++;else if(r.statusKey==='partial')partialN++;else if(r.statusKey==='absent')absentN++;else if(r.statusKey==='leave')leaveN++;else if(r.statusKey==='other')otherN++;});
     const summary=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin:10px 0 12px;padding:10px 12px;background:var(--surface2);border-radius:8px;">
       <span>PEs All Updated: <b style="color:#34c98a;">${fullN}</b></span>
       <span>Partial: <b style="color:#f5a623;">${partialN}</b></span>
       <span>Absent: <b style="color:#e74c3c;">${absentN}</b></span>
+      <span>Other Task: <b style="color:#3bc0d8;">${otherN}</b></span>
       <span>On Leave: <b style="color:#3bc0d8;">${leaveN}</b></span>
     </div>`;
+    </div>`;
     const body=rows.map((r,i)=>{
-      let badge='';
+let badge='';
       if(r.statusKey==='leave')badge='<span class="badge bb">🏖 Leave</span>';
+      else if(r.statusKey==='other')badge='<span class="badge bb">Other Task</span>';
       else if(r.statusKey==='none')badge='<span class="badge bgr">—</span>';
       else if(r.statusKey==='absent')badge='<span class="badge br">Absent</span>';
       else if(r.statusKey==='full')badge='<span class="badge bg">All Updated</span>';
       else badge='<span class="badge bo">Partial</span>';
+
+      
       const peLink=`<span onclick="pemrShowDay('${escq(r.pe)}','${dk}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;color:var(--text);font-weight:500;">${pemrEsc(r.pe)}</span>`;
       return `<tr>
         <td style="color:var(--muted);text-align:center;">${i+1}</td>
