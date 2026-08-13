@@ -3413,12 +3413,15 @@ function pemrShowPE(peName){
   else expectedDays=daysInMonth;
 
 const leavesSet=(ctx.leavesByPE&&ctx.leavesByPE[peName])||new Set();
-  const otherSet=(ctx.otherByPE&&ctx.otherByPE[peName])||new Set();
-  let daysUpdated=0,projUpdates=0,tbtCnt=0,dprCnt=0,leaveCount=0,otherCount=0;
+const otherSet=(ctx.otherByPE&&ctx.otherByPE[peName])||new Set();
+  const exitDate=(ctx.peExitDate&&ctx.peExitDate[peName])||null;
+  const exitMs=exitDate?new Date(exitDate.getFullYear(),exitDate.getMonth(),exitDate.getDate()).getTime():null;
+  let daysUpdated=0,projUpdates=0,tbtCnt=0,dprCnt=0,leaveCount=0,otherCount=0,exitedDays=0;
   const missed=[],leaveDates=[],otherDates=[];
   let weekOffCount=0;const weekOffDates=[];
   for(let dd=1;dd<=expectedDays;dd++){
     const dk=yy+'-'+mm+'-'+dd;
+    if(exitMs!==null&&new Date(yy,mm-1,dd).getTime()>=exitMs){exitedDays++;continue;}
     if(leavesSet.has(dk)){leaveCount++;leaveDates.push(dd);continue;}
     let anyToday=false;
     pids.forEach(pid=>{
@@ -3435,7 +3438,8 @@ const leavesSet=(ctx.leavesByPE&&ctx.leavesByPE[peName])||new Set();
     }
   }
   // Effective expected days = elapsed - leaves - week-off - other task
-  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount-otherCount);
+  // Effective expected days = elapsed - leaves - week-off - other task - post-exit days
+  const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount-otherCount-exitedDays);
   const total=pids.length;
   const expectedProjUpdates=effExpected*total;
   const attPct=effExpected?Math.round(daysUpdated/effExpected*100):0;
@@ -3589,7 +3593,7 @@ const summaryContent=total?`<div class="metrics" style="margin-top:8px;">${cards
     ${leaveSection}
     ${otherSection}
     
-    <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave − ${otherCount} other task) × ${total} project(s). Leave &amp; Other-Task dates are excluded from expected. TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
+    <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;">Expected = ${effExpected} day(s) (${expectedDays} elapsed − ${leaveCount} leave − ${otherCount} other task${exitedDays?` − ${exitedDays} post-exit`:''}) × ${total} project(s). Leave &amp; Other-Task dates are excluded from expected.${exitDate?` <b style="color:#e74c3c;">PE exited on ${fmtDate(exitDate)}.</b>`:''} TBT/DPR counts are project-days with a report logged in the TBT sheet.</div>`
     :'<div class="empty" style="margin-top:10px;">No projects assigned to this PE (Lead not assigned).</div>';
 
   
@@ -3959,12 +3963,20 @@ const Dp_CID=ci(D.dpr.h,'ChildID','child');
   // Also include any PE present in Lead Tracker but missing from master (so nothing is lost)
   Object.keys(peAssignedAny).forEach(p=>{if(!allPEs.includes(p))allPEs.push(p);});
 
-  const cityCMfilterActive=fCity.size||fCluster.size||fCityMgr.size;
+const cityCMfilterActive=fCity.size||fCluster.size||fCityMgr.size;
+  // PE Status / Exit date (new PE Master columns)
+  const peStatusIdx=ci(D.pe.h,'PEStatus','PE Status'),peExitIdx=ci(D.pe.h,'Exitdate','Exit date','exit');
+  const peExitDate={},peStatusMap={};
+  D.pe.r.forEach(x=>{const nm=v(x,1);if(!nm)return;if(peStatusIdx>=0)peStatusMap[nm]=v(x,peStatusIdx);if(peExitIdx>=0){const d=parseDate(v(x,peExitIdx));if(d)peExitDate[nm]=d;}});
   let peNames=allPEs.filter(pe=>{
     if(fPE.size&&!fPE.has(pe))return false;
     if(cityCMfilterActive&&!(peProjects[pe]&&peProjects[pe].length))return false; // scoped out
+    const ex=peExitDate[pe];
+    if(ex){const exY=ex.getFullYear(),exM=ex.getMonth();if(exY<yy||(exY===yy&&exM<mm-1))return false;} // exited in an earlier month → don't list
     return true;
   }).sort((a,b)=>a.localeCompare(b));
+
+  
 
   // Off-days index: PE name -> Map of dateKey -> 'Leave' | 'Week-Off' (this month).
   // Daily Activity sheet: A(0)=Name (was email), B(1)=Task Date, C(2)=Day Status ("Leave"/"Week-Off").
@@ -4015,7 +4027,7 @@ const leavesByPE={};
   D.lead.r.forEach(x=>{const pe=lv(x,LEAD_COL.PE);if(!pe)return;if(!peClusterMap[pe])peClusterMap[pe]=lv(x,LEAD_COL.CLUSTER);if(!peCityMgrMap[pe])peCityMgrMap[pe]=lv(x,LEAD_COL.CITYMGR);});
 
   // Save context for the day-detail popup
-  _pemrCtx={peProjects,projName,attByPD,attByPEPD,attByPEDay,tbtByPD,dprByPD,projDates,leavesByPE,otherByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
+  _pemrCtx={peProjects,projName,attByPD,attByPEPD,attByPEDay,tbtByPD,dprByPD,projDates,leavesByPE,otherByPE,peExitDate,peStatusMap,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
 
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   head.innerHTML='<tr><th class="pemr-c0">PE Name</th><th class="pemr-c1">Projects</th>'+
@@ -4028,8 +4040,15 @@ const pids=peProjects[pe]||[];
     const leadNotAssigned=!peAssignedAny[pe];
     const peEsc=pe.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     const cells=days.map(d=>{
-      const dk=pmrKey(d);const future=d>today;
+const dk=pmrKey(d);const future=d>today;
       if(leadNotAssigned)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
+      const _exd=peExitDate[pe];
+      if(_exd){
+        const _exMs=new Date(_exd.getFullYear(),_exd.getMonth(),_exd.getDate()).getTime();
+        const _curMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+        if(_curMs===_exMs)return `<td><div class="pmr-cell pmr-red" title="PE exited on ${fmtDate(_exd)}" style="font-weight:600;">Exited</div></td>`;
+        if(_curMs>_exMs)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
+      }
       const onLeave=(leavesByPE[pe]&&leavesByPE[pe].has(dk));
       const onOther=(otherByPE[pe]&&otherByPE[pe].has(dk));
       const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
