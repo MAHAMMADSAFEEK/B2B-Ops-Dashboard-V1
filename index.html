@@ -3825,8 +3825,7 @@ let fullN=0,partialN=0,absentN=0,leaveN=0,otherN=0;
       <span>Partial: <b style="color:#f5a623;">${partialN}</b></span>
       <span>Absent: <b style="color:#e74c3c;">${absentN}</b></span>
       <span>Other Task: <b style="color:#3bc0d8;">${otherN}</b></span>
-      <span>On Leave: <b style="color:#3bc0d8;">${leaveN}</b></span>
-    </div>`;
+<span>On Leave: <b style="color:#3bc0d8;">${leaveN}</b></span>
     </div>`;
     const body=rows.map((r,i)=>{
 let badge='';
@@ -4128,8 +4127,9 @@ function renderPEMRPESummary(){
       }
       const t=ctx.tbtByPD[key];if(t){if(t.tbt){tbtCnt++;projStats[pid].tbt++;}if(t.dpr){dprCnt++;projStats[pid].dpr++;}}
     });
-    if(anyToday)daysUpdated++; else missed.push(dd);
+if(anyToday)daysUpdated++; else missed.push(dd);
   }
+  const weekOffCount=missed.filter(dd=>new Date(yy,mm-1,dd).getDay()===0).length;
   const effExpected=Math.max(0,expectedDays-leaveCount-weekOffCount);
   const total=pids.length;
   const expectedProjUpdates=effExpected*total;
