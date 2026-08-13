@@ -3391,7 +3391,7 @@ const summary=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;m
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
     </div>
     ${summary}
-    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${pids.length?cards:'<div class="empty">No projects assigned to this PE.</div>'}</div>
+    <div style="overflow:auto;display:flex;flex-direction:column;gap:10px;">${(()=>{const _oh=_pemrCtx.otherByPE&&_pemrCtx.otherByPE[peName]&&_pemrCtx.otherByPE[peName].has(dk);const _or=_oh?(_pemrCtx.otherByPE[peName].get(dk)||''):'';const oc=_oh?`<div class="pemr-card" style="border-left:3px solid #3bc0d8;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;"><span style="font-weight:600;font-size:13px;color:var(--text);">Other Task Update</span><span class="badge bb" style="margin-left:auto;">Other Task</span></div>${_or?`<div style="font-size:11px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;white-space:pre-wrap;">📝 ${pemrEsc(_or)}</div>`:'<div style="font-size:11px;color:var(--muted);">No remark provided.</div>'}</div>`:'';return oc+(pids.length?cards:(oc?'':'<div class="empty">No projects assigned to this PE.</div>'));})()}</div>
   </div>`;
   ov.style.display='flex';
 }
@@ -3975,16 +3975,19 @@ const attByPEPD={},attByPEDay={};
     if(raw.includes('@'))return emailToPE[raw.toLowerCase()]||'';   // backward-compat if an email is still used
     return peNameCanon[raw.toLowerCase()]||raw;                      // column A is a name now
   };
-  const leavesByPE={};
+const leavesByPE={};
+  const otherByPE={};
   D.daily.r.forEach(x=>{
     const st=String(v(x,2)).toLowerCase().trim();
     const isLeave=(st==='leave');
     const isOff=(st==='week-off'||st==='weekoff'||st==='week off'||st==='weekly off'||st==='off');
-    if(!isLeave&&!isOff)return;                 // only Leave / Week-Off count as off-days
+    const isOther=(st==='other task update'||st.indexOf('other task')>=0);
+    if(!isLeave&&!isOff&&!isOther)return;        // Leave / Week-Off / Other Task Update
     const d=parseDate(v(x,1));
     if(!d||d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
     const nm=resolveDailyName(v(x,0)); if(!nm)return;
-    (leavesByPE[nm]=leavesByPE[nm]||new Map()).set(pmrKey(d), isOff?'Week-Off':'Leave');
+    if(isLeave||isOff){(leavesByPE[nm]=leavesByPE[nm]||new Map()).set(pmrKey(d), isOff?'Week-Off':'Leave');}
+    else if(isOther){(otherByPE[nm]=otherByPE[nm]||new Map()).set(pmrKey(d), v(x,6)||'');}   // col G = index 6
   });
 
   // Cluster Head / City Manager maps from PE Master (header-matched)
@@ -3995,7 +3998,7 @@ const attByPEPD={},attByPEDay={};
   D.lead.r.forEach(x=>{const pe=lv(x,LEAD_COL.PE);if(!pe)return;if(!peClusterMap[pe])peClusterMap[pe]=lv(x,LEAD_COL.CLUSTER);if(!peCityMgrMap[pe])peCityMgrMap[pe]=lv(x,LEAD_COL.CITYMGR);});
 
   // Save context for the day-detail popup
-  _pemrCtx={peProjects,projName,attByPD,attByPEPD,attByPEDay,tbtByPD,dprByPD,projDates,leavesByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
+  _pemrCtx={peProjects,projName,attByPD,attByPEPD,attByPEDay,tbtByPD,dprByPD,projDates,leavesByPE,otherByPE,peNames,peClusterMap,peCityMgrMap,yy,mm,A_CI,A_CO,A_LOC};
 
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   head.innerHTML='<tr><th class="pemr-c0">PE Name</th><th class="pemr-c1">Projects</th>'+
@@ -4011,6 +4014,7 @@ const pids=peProjects[pe]||[];
       const dk=pmrKey(d);const future=d>today;
       if(leadNotAssigned)return `<td><div class="pmr-cell pmr-grey">—</div></td>`;
       const onLeave=(leavesByPE[pe]&&leavesByPE[pe].has(dk));
+      const onOther=(otherByPE[pe]&&otherByPE[pe].has(dk));
       const dMs=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
       // Active pids for this specific day: exclude projects completed on/before this day (or Hold/Cancelled/Vendor-Not-Finalized)
       const activePids=pids.filter(pid=>{
@@ -4038,15 +4042,14 @@ const pids=peProjects[pe]||[];
       });
       const extraSet=attByPEDay[pe+'|'+dk];
       const extraCount=extraSet?[...extraSet].filter(p=>!activePids.includes(p)).length:0;
-      let cls,label;
+let cls,label;
       const isSunday=d.getDay()===0;
-      if(total===0){
-        cls='pmr-grey';label='—';
-      } else if(updated===0){
-        if(onLeave){cls='pmr-teal';label=(leavesByPE[pe].get(dk)||'Leave');}
-        else if(isSunday){cls=future?'pmr-grey':'pmr-teal';label=future?'—':'Week-Off';}
-        else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
-      } else{cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
+      if(updated>0){cls=(updated>=total)?'pmr-green':'pmr-orange';label=`${updated}/${total} updated`;}
+      else if(onLeave){cls=future?'pmr-grey':'pmr-teal';label=future?'—':(leavesByPE[pe].get(dk)||'Leave');}
+      else if(onOther){cls=future?'pmr-grey':'pmr-teal';label=future?'—':'Other Task Update';}
+      else if(total===0){cls='pmr-grey';label='—';}
+      else if(isSunday){cls=future?'pmr-grey':'pmr-teal';label=future?'—':'Week-Off';}
+      else{cls=future?'pmr-grey':'pmr-red';label=future?'—':'Absent';}
       
       const tags=(updated>0)?`<div class="pmr-tags"><span class="pmr-tg ${tbt?'pmr-green':'pmr-red'}">TBT ${tbt?'✓':'—'}</span><span class="pmr-tg ${dpr?'pmr-green':'pmr-red'}">DPR ${dpr?'✓':'—'}</span>${extraCount?`<span class="pmr-tg" style="background:rgba(79,142,247,.2);color:#4f8ef7;">+${extraCount} extra</span>`:''}</div>`:'';
       const click=future?'':` onclick="pemrShowDay('${peEsc}','${dk}')" style="cursor:pointer;"`;
