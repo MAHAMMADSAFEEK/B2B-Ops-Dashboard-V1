@@ -1741,14 +1741,14 @@ function povHoldInfo(x){
   let m;
   while((m=re.exec(log))!==null){
     const t=m[1].toLowerCase();
-    res.events.push({type:t.startsWith('cancel')?'cancel':t==='Unhold'?'Unhold':'hold',date:povParseHoldDate(m[2]),raw:m[2],remark:(m[3]||'').trim()});
+    res.events.push({type:t.startsWith('cancel')?'cancel':t==='unhold'?'unhold':'hold',date:povParseHoldDate(m[2]),raw:m[2],remark:(m[3]||'').trim()});
   }
-  if(!res.events.length)return res;
+    if(!res.events.length)return res;
   const today=new Date();today.setHours(0,0,0,0);
   let open=null;
   res.events.forEach(e=>{
     if(e.type==='hold'){if(!open)open={start:e.date,end:null,remark:e.remark};}
-    else if(e.type==='Unhold'){if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}}
+        else if(e.type==='unhold'){if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}}
     else if(e.type==='cancel'){
       if(open){open.end=e.date;res.holdIntervals.push(open);open=null;}
       res.cancelled=true;res.cancelDate=e.date;res.cancelRemark=e.remark;
