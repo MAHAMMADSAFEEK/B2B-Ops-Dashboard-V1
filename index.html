@@ -4750,7 +4750,7 @@ function clearHRCFilters(){
 }
 
 
-  function buildHRC(){
+function buildHRC(){
   const monthVal=(document.getElementById('hrc-f-month')||{}).value||'';
   const weekVal=(document.getElementById('hrc-f-week')||{}).value||'';
   const dateVal=(document.getElementById('hrc-f-date')||{}).value||'';
@@ -4766,7 +4766,6 @@ function clearHRCFilters(){
     else if(weekVal){const w=Number(weekVal);dayStart=(w-1)*7+1;dayEnd=Math.min(w*7,dim);}
   }
 
-  // Best attendance status per project inside the time window
   const prio={'onsite visit':4,'without visit update':3,'no activity':2};
   const projAtt={};
   D.att.r.forEach(x=>{
@@ -4781,7 +4780,7 @@ function clearHRCFilters(){
     if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd'];
+  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed'];
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
   const projC=x=>{
@@ -4789,13 +4788,14 @@ function clearHRCFilters(){
     const m=computeProjectMetrics(pid);
     c.total=1;
     if(m.installStatus==='done')c.inst=1;
+    const dl=povComputeDelay(x);
+    if(dl&&dl.delayBy>0&&!dl.isDone)c.delayed=1;
     if(b==='done')c.done=1;
     else if(b==='ch')c.ch=1;
     else if(b==='na')c.na=1;
     else if(b==='vnf')c.vnf=1;
     else if(b==='handover'){c.handover=1;c.tpending=1;}
     else{
-      // On Going: the only bucket that is checked for daily activity
       c.ongoing=1;c.tpending=1;
       const a=projAtt[pid];
       if(a){
@@ -4807,8 +4807,8 @@ function clearHRCFilters(){
     }
     return c;
   };
+  window._hrcProjC=projC;   // used by the click-through list
 
-  // cluster → city manager → PE → project
   const tree={};
   D.lead.r.forEach(x=>{
     const pid=lv(x,LEAD_COL.PID);if(!pid||!hrcRowPasses(x))return;
@@ -4818,37 +4818,40 @@ function clearHRCFilters(){
     ((((tree[cl]=tree[cl]||{})[cm]=tree[cl][cm]||{})[pe]=tree[cl][cm][pe]||{})[pid])={x,pname:lv(x,LEAD_COL.PNAME)||pid,city:lv(x,LEAD_COL.CITY)||'—'};
   });
 
-  const rows=[];const grand=zeroC();
+  const rows=[];const grand=zeroC();const grandItems=[];
   Object.keys(tree).sort().forEach(cluster=>{
-    const cKey='c:'+cluster,cmsObj=tree[cluster],cmKeys=Object.keys(cmsObj).sort(),cC=zeroC();
-    cmKeys.forEach(cm=>Object.keys(cmsObj[cm]).forEach(pe=>Object.keys(cmsObj[cm][pe]).forEach(pid=>sumC(cC,projC(cmsObj[cm][pe][pid].x)))));
-    sumC(grand,cC);
+    const cKey='c:'+cluster,cmsObj=tree[cluster],cmKeys=Object.keys(cmsObj).sort(),cC=zeroC(),cI=[];
+    cmKeys.forEach(cm=>Object.keys(cmsObj[cm]).forEach(pe=>Object.keys(cmsObj[cm][pe]).forEach(pid=>{const x=cmsObj[cm][pe][pid].x;sumC(cC,projC(x));cI.push(x);})));
+    sumC(grand,cC);grandItems.push(...cI);
     const cExp=_hrcExpanded.has(cKey);
-    rows.push({level:0,key:cKey,label:cluster,counts:cC,expandable:true,expanded:cExp});
+    rows.push({level:0,key:cKey,label:cluster,counts:cC,items:cI,expandable:true,expanded:cExp});
     if(!cExp)return;
     cmKeys.forEach(cm=>{
-      const cmKey=cKey+'|'+cm,pesObj=cmsObj[cm],peKeys=Object.keys(pesObj).sort(),cmC=zeroC();
-      peKeys.forEach(pe=>Object.keys(pesObj[pe]).forEach(pid=>sumC(cmC,projC(pesObj[pe][pid].x))));
+      const cmKey=cKey+'|'+cm,pesObj=cmsObj[cm],peKeys=Object.keys(pesObj).sort(),cmC=zeroC(),cmI=[];
+      peKeys.forEach(pe=>Object.keys(pesObj[pe]).forEach(pid=>{const x=pesObj[pe][pid].x;sumC(cmC,projC(x));cmI.push(x);}));
       const cmExp=_hrcExpanded.has(cmKey);
-      rows.push({level:1,key:cmKey,label:cm,counts:cmC,expandable:true,expanded:cmExp});
+      rows.push({level:1,key:cmKey,label:cm,counts:cmC,items:cmI,expandable:true,expanded:cmExp});
       if(!cmExp)return;
       peKeys.forEach(pe=>{
-        const peKey=cmKey+'|'+pe,pidsObj=pesObj[pe],pidKeys=Object.keys(pidsObj),peC=zeroC();
-        pidKeys.forEach(pid=>sumC(peC,projC(pidsObj[pid].x)));
+        const peKey=cmKey+'|'+pe,pidsObj=pesObj[pe],pidKeys=Object.keys(pidsObj),peC=zeroC(),peI=[];
+        pidKeys.forEach(pid=>{sumC(peC,projC(pidsObj[pid].x));peI.push(pidsObj[pid].x);});
         const peExp=_hrcExpanded.has(peKey);
-        rows.push({level:2,key:peKey,label:pe,counts:peC,expandable:true,expanded:peExp});
+        rows.push({level:2,key:peKey,label:pe,counts:peC,items:peI,expandable:true,expanded:peExp});
         if(!peExp)return;
         pidKeys.sort((a,b)=>pidsObj[a].pname.localeCompare(pidsObj[b].pname)).forEach(pid=>{
           const it=pidsObj[pid];
-          rows.push({level:3,key:peKey+'|'+pid,label:it.pname,sublabel:pid+' · '+it.city,counts:projC(it.x),expandable:false});
+          rows.push({level:3,key:peKey+'|'+pid,label:it.pname,sublabel:pid+' · '+it.city,counts:projC(it.x),items:[it.x],expandable:false});
         });
       });
     });
   });
+  window._hrcRowList=rows;
+  window._hrcGrandItems=grandItems;
 
   const AMB='background:linear-gradient(rgba(245,166,35,.16),rgba(245,166,35,.16)),var(--surface2);';
   const GRN='background:linear-gradient(rgba(52,201,138,.16),rgba(52,201,138,.16)),var(--surface2);';
   const RED='background:linear-gradient(rgba(231,76,60,.16),rgba(231,76,60,.16)),var(--surface2);';
+  const PNK='background:linear-gradient(rgba(224,81,138,.18),rgba(224,81,138,.18)),var(--surface2);';
   head.innerHTML=
    `<tr>
       <th rowspan="2" style="width:34px;text-align:center;">#</th>
@@ -4862,6 +4865,7 @@ function clearHRCFilters(){
       <th colspan="3" style="text-align:center;color:#f5a623;${AMB}border-left:2px solid #f5a623;border-right:2px solid #f5a623;">Total Pending</th>
       <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
       <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
+      <th rowspan="2" style="text-align:right;color:#e0518a;${PNK}border-left:2px solid #e0518a;" title="Not completed and past PO timeline">Delayed Projects</th>
     </tr>
     <tr>
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-left:2px solid #f5a623;">Total</th>
@@ -4873,35 +4877,40 @@ function clearHRCFilters(){
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
     </tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="16" class="empty">No leads match the selected filters</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="17" class="empty">No leads match the selected filters</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
-  const cell=(n,color,base,extra)=>`<td style="text-align:right;color:${n?color:'var(--muted)'};font-weight:500;${extra||''}">${n?`${n}${base?` <span style="color:var(--muted);font-weight:400;font-size:10px;">(${Math.round(n/base*100)}%)</span>`:''}`:'—'}</td>`;
-  const tA='background:rgba(245,166,35,.07);',tG='background:rgba(52,201,138,.07);',tR='background:rgba(231,76,60,.07);';
-  const countCells=(c)=>
-    `<td style="text-align:right;font-weight:600;">${c.total}</td>`+
-    cell(c.inst,'#34c98a',c.total)+
-    cell(c.done,'#0d9488',c.total)+
-    cell(c.ch,'#9b6dff',c.total)+
-    cell(c.na,'#e74c3c',c.total)+
-    cell(c.vnf,'#8b92b0',c.total)+
-    // Total Pending group = On Going + Handover Pending
-    cell(c.tpending,'#f5a623',c.total,tA+'border-left:2px solid #f5a623;font-weight:700;')+
-    cell(c.ongoing,'#f5a623',c.tpending,tA)+
-    cell(c.handover,'#3bc0d8',c.tpending,tA+'border-right:2px solid #f5a623;')+
-    // Activity Updated group (from On Going only)
-    cell(c.upd,'#34c98a',c.ongoing,tG+'font-weight:700;')+
-    cell(c.noact,'#f5a623',c.upd,tG)+
-    cell(c.onsite,'#34c98a',c.upd,tG)+
-    cell(c.without,'#3bc0d8',c.upd,tG+'border-right:2px solid #34c98a;')+
-    cell(c.notupd,'#e74c3c',c.ongoing,tR);
+
+  // clickable cell: rid = row index (-1 = grand total), key = metric
+  const cell=(n,color,base,extra,key,rid)=>{
+    const clk=(n&&key)?` onclick="hrcShowList(${rid},'${key}')" title="Click to view projects"`:'';
+    const cur=(n&&key)?'cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;':'';
+    return `<td${clk} style="text-align:right;color:${n?color:'var(--muted)'};font-weight:500;${cur}${extra||''}">${n?`${n}${base?` <span style="color:var(--muted);font-weight:400;font-size:10px;">(${Math.round(n/base*100)}%)</span>`:''}`:'—'}</td>`;
+  };
+  const tA='background:rgba(245,166,35,.07);',tG='background:rgba(52,201,138,.07);',tR='background:rgba(231,76,60,.07);',tP='background:rgba(224,81,138,.08);';
+  const countCells=(c,rid)=>
+    cell(c.total,'var(--text)',0,'font-weight:600;','total',rid)+
+    cell(c.inst,'#34c98a',c.total,'','inst',rid)+
+    cell(c.done,'#0d9488',c.total,'','done',rid)+
+    cell(c.ch,'#9b6dff',c.total,'','ch',rid)+
+    cell(c.na,'#e74c3c',c.total,'','na',rid)+
+    cell(c.vnf,'#8b92b0',c.total,'','vnf',rid)+
+    cell(c.tpending,'#f5a623',c.total,tA+'border-left:2px solid #f5a623;font-weight:700;','tpending',rid)+
+    cell(c.ongoing,'#f5a623',c.tpending,tA,'ongoing',rid)+
+    cell(c.handover,'#3bc0d8',c.tpending,tA+'border-right:2px solid #f5a623;','handover',rid)+
+    cell(c.upd,'#34c98a',c.ongoing,tG+'font-weight:700;','upd',rid)+
+    cell(c.noact,'#f5a623',c.upd,tG,'noact',rid)+
+    cell(c.onsite,'#34c98a',c.upd,tG,'onsite',rid)+
+    cell(c.without,'#3bc0d8',c.upd,tG+'border-right:2px solid #34c98a;','without',rid)+
+    cell(c.notupd,'#e74c3c',c.ongoing,tR,'notupd',rid)+
+    cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid);
 
   const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
-    <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand)}</tr>`;
+    <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
 
   let ci_=0;
-  body.innerHTML=grandRow+rows.map(r=>{
+  body.innerHTML=grandRow+rows.map((r,i)=>{
     const indent=r.level*24,col=levelColors[r.level],fw=r.level===3?500:600;
     const toggle=r.expandable
       ?`<button class="hrc-tg" onclick="toggleHRC('${r.key.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" style="color:${col};">${r.expanded?'−':'+'}</button>`
@@ -4913,10 +4922,70 @@ function clearHRCFilters(){
     return `<tr class="hrc-row-${r.level}">
       <td style="color:var(--muted);text-align:center;font-weight:500;">${r.level===0?ci_:''}</td>
       <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${levelIcons[r.level]}" style="color:${col};font-size:14px;"></i>${label}</span></td>
-      ${countCells(r.counts)}
+      ${countCells(r.counts,i)}
     </tr>`;
   }).join('');
 }
+
+
+
+  const HRC_METRIC_LABELS={
+  total:'Total Projects',inst:'Installation Completed',done:'Project Completed',ch:'Cancelled & Hold',
+  na:'Not Assigned',vnf:'Vendor Not Finalized',tpending:'Total Pending',ongoing:'On Going',
+  handover:'Handover Pending',upd:'Activity Updated',noact:'No Activity',onsite:'Onsite Visit',
+  without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects'
+};
+
+function hrcShowList(rid,key){
+  const src=rid<0?{label:'Grand Total',items:window._hrcGrandItems||[]}:(window._hrcRowList||[])[rid];
+  const pc=window._hrcProjC;
+  if(!src||!pc)return;
+  const items=src.items.filter(x=>pc(x)[key]>0).map(x=>({x,d:povComputeDelay(x)}));
+  // most delayed first, then by name
+  items.sort((a,b)=>((b.d&&b.d.delayBy>0?b.d.delayBy:0)-(a.d&&a.d.delayBy>0?a.d.delayBy:0))||lv(a.x,LEAD_COL.PNAME).localeCompare(lv(b.x,LEAD_COL.PNAME)));
+
+  const delayBadge=d=>{
+    if(!d)return '<span class="badge bgr">No PO data</span>';
+    if(d.isDone)return d.delayBy>0
+      ?`<span class="badge bo">Completed · ${d.delayBy}d late</span>`
+      :'<span class="badge bg">Completed on time</span>';
+    return d.delayBy>0
+      ?`<span class="badge br">⚠ Delayed ${d.delayBy}d</span>`
+      :`<span class="badge bg">On time · ${-d.delayBy}d left</span>`;
+  };
+  const rowsHtml=items.map(({x,d},i)=>{
+    const pid=lv(x,LEAD_COL.PID),name=lv(x,LEAD_COL.PNAME)||pid;
+    const st=povProjectStatuses(x)[0];
+    const sc=(typeof STAGE_STATUS_COLORS!=='undefined'&&STAGE_STATUS_COLORS[st])||'#8b92b0';
+    const escId=pid.replace(/'/g,"\\'"),escName=name.replace(/'/g,"\\'");
+    return `<tr>
+      <td style="color:var(--muted);">${i+1}</td>
+      <td style="font-weight:500;cursor:pointer;color:#4f8ef7;" onclick="openProjectSummaryFor('${escId}','${escName}')">${pemrEsc(name)}</td>
+      <td><span class="badge bp">${pemrEsc(pid)}</span></td>
+      <td style="font-size:12px;">${pemrEsc(lv(x,LEAD_COL.CITY))||'—'}</td>
+      <td style="font-size:12px;">${lv(x,LEAD_COL.PE)?pemrEsc(lv(x,LEAD_COL.PE)):'<span style="color:#e74c3c;">Not Assigned</span>'}</td>
+      <td><span class="badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}55;">${pemrEsc(st)}</span></td>
+      <td>${delayBadge(d)}</td>
+    </tr>`;
+  }).join('');
+
+  let ov=document.getElementById('pemr-modal-ov');
+  if(!ov){ov=document.createElement('div');ov.id='pemr-modal-ov';ov.className='pmr-modal-ov';ov.onclick=(e)=>{if(e.target===ov)pemrCloseDay();};document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="pmr-modal" style="max-width:980px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div><div style="font-size:15px;font-weight:600;">${pemrEsc(src.label)} — ${pemrEsc(HRC_METRIC_LABELS[key]||key)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">${items.length} project(s) · click a project name for full summary</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div class="table-wrap" style="overflow:auto;"><table style="font-size:12px;width:100%;">
+      <thead><tr><th>#</th><th>Project Name</th><th>Project ID</th><th>City</th><th>PE</th><th>Status</th><th>Delay Status</th></tr></thead>
+      <tbody>${rowsHtml||'<tr><td colspan="7" class="empty">No projects</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+  ov.style.display='flex';
+}
+
+  
 
   
 
