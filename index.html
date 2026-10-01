@@ -4846,6 +4846,9 @@ function clearHRCFilters(){
     });
   });
 
+  const AMB='background:linear-gradient(rgba(245,166,35,.16),rgba(245,166,35,.16)),var(--surface2);';
+  const GRN='background:linear-gradient(rgba(52,201,138,.16),rgba(52,201,138,.16)),var(--surface2);';
+  const RED='background:linear-gradient(rgba(231,76,60,.16),rgba(231,76,60,.16)),var(--surface2);';
   head.innerHTML=
    `<tr>
       <th rowspan="2" style="width:34px;text-align:center;">#</th>
@@ -4853,20 +4856,21 @@ function clearHRCFilters(){
       <th rowspan="2" style="text-align:right;">Total Projects</th>
       <th rowspan="2" style="text-align:right;">Installation Completed</th>
       <th rowspan="2" style="text-align:right;">Project Completed</th>
-      <th rowspan="2" style="text-align:right;" title="Installation done, O&amp;M / handover pending">Handover Pending</th>
       <th rowspan="2" style="text-align:right;">Cancelled &amp; Hold</th>
       <th rowspan="2" style="text-align:right;">Not Assigned</th>
       <th rowspan="2" style="text-align:right;" title="PE assigned but vendor not finalized">Vendor Not Finalized</th>
-      <th rowspan="2" style="text-align:right;" title="On Going + Handover Pending">Total Pending</th>
-      <th rowspan="2" style="text-align:right;" title="PE assigned, vendor finalized, installation not done">On Going</th>
-      <th colspan="4" style="text-align:center;border-left:1px solid var(--border2);border-right:1px solid var(--border2);">Activity Updated (from On Going)</th>
-      <th rowspan="2" style="text-align:right;">Not Updated</th>
+      <th colspan="3" style="text-align:center;color:#f5a623;${AMB}border-left:2px solid #f5a623;border-right:2px solid #f5a623;">Total Pending</th>
+      <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
+      <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
     </tr>
     <tr>
-      <th style="text-align:right;top:33px;border-left:1px solid var(--border2);">Updated</th>
-      <th style="text-align:right;top:33px;">No Activity</th>
-      <th style="text-align:right;top:33px;">Onsite Visit</th>
-      <th style="text-align:right;top:33px;border-right:1px solid var(--border2);">Without Visit</th>
+      <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-left:2px solid #f5a623;">Total</th>
+      <th style="text-align:right;top:33px;color:#f5a623;${AMB}" title="PE assigned, vendor finalized, installation not done">On Going</th>
+      <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-right:2px solid #f5a623;" title="Installation done, O&amp;M / handover pending">Handover Pending</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Updated</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${GRN}">No Activity</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Onsite Visit</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
     </tr>`;
 
   if(!rows.length){body.innerHTML='<tr><td colspan="16" class="empty">No leads match the selected filters</td></tr>';return;}
@@ -4874,21 +4878,24 @@ function clearHRCFilters(){
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
   const cell=(n,color,base,extra)=>`<td style="text-align:right;color:${n?color:'var(--muted)'};font-weight:500;${extra||''}">${n?`${n}${base?` <span style="color:var(--muted);font-weight:400;font-size:10px;">(${Math.round(n/base*100)}%)</span>`:''}`:'—'}</td>`;
+  const tA='background:rgba(245,166,35,.07);',tG='background:rgba(52,201,138,.07);',tR='background:rgba(231,76,60,.07);';
   const countCells=(c)=>
     `<td style="text-align:right;font-weight:600;">${c.total}</td>`+
     cell(c.inst,'#34c98a',c.total)+
     cell(c.done,'#0d9488',c.total)+
-    cell(c.handover,'#3bc0d8',c.total)+
     cell(c.ch,'#9b6dff',c.total)+
     cell(c.na,'#e74c3c',c.total)+
     cell(c.vnf,'#8b92b0',c.total)+
-    cell(c.tpending,'#e8743b',c.total)+
-    cell(c.ongoing,'#f5a623',c.total)+
-    cell(c.upd,'#34c98a',c.ongoing,'border-left:1px solid var(--border2);')+
-    cell(c.noact,'#f5a623',c.upd)+
-    cell(c.onsite,'#34c98a',c.upd)+
-    cell(c.without,'#3bc0d8',c.upd,'border-right:1px solid var(--border2);')+
-    cell(c.notupd,'#e74c3c',c.ongoing);
+    // Total Pending group = On Going + Handover Pending
+    cell(c.tpending,'#f5a623',c.total,tA+'border-left:2px solid #f5a623;font-weight:700;')+
+    cell(c.ongoing,'#f5a623',c.tpending,tA)+
+    cell(c.handover,'#3bc0d8',c.tpending,tA+'border-right:2px solid #f5a623;')+
+    // Activity Updated group (from On Going only)
+    cell(c.upd,'#34c98a',c.ongoing,tG+'font-weight:700;')+
+    cell(c.noact,'#f5a623',c.upd,tG)+
+    cell(c.onsite,'#34c98a',c.upd,tG)+
+    cell(c.without,'#3bc0d8',c.upd,tG+'border-right:2px solid #34c98a;')+
+    cell(c.notupd,'#e74c3c',c.ongoing,tR);
 
   const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
     <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand)}</tr>`;
