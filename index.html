@@ -4721,8 +4721,10 @@ function hrcBucket(x){
   if(h.cancelled||h.onHold)return 'ch';
   if(!lv(x,LEAD_COL.PE))return 'na';
   if(!vendorFinalizeDate(x))return 'vnf';
-  if(computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done')return 'done';
-  return 'pending';
+  const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+  if(m.status==='done')return 'done';
+  if(m.installStatus==='done')return 'handover';
+  return 'ongoing';
 }
 function hrcRowPasses(x){
   const f=_hrcMS;
@@ -4747,7 +4749,8 @@ function clearHRCFilters(){
   buildHRC();
 }
 
-function buildHRC(){
+
+  function buildHRC(){
   const monthVal=(document.getElementById('hrc-f-month')||{}).value||'';
   const weekVal=(document.getElementById('hrc-f-week')||{}).value||'';
   const dateVal=(document.getElementById('hrc-f-date')||{}).value||'';
@@ -4778,7 +4781,7 @@ function buildHRC(){
     if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  const KEYS=['total','inst','done','ch','na','vnf','pending','upd','noact','onsite','without','notupd'];
+  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd'];
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
   const projC=x=>{
@@ -4790,8 +4793,10 @@ function buildHRC(){
     else if(b==='ch')c.ch=1;
     else if(b==='na')c.na=1;
     else if(b==='vnf')c.vnf=1;
+    else if(b==='handover'){c.handover=1;c.tpending=1;}
     else{
-      c.pending=1;
+      // On Going: the only bucket that is checked for daily activity
+      c.ongoing=1;c.tpending=1;
       const a=projAtt[pid];
       if(a){
         c.upd=1;
@@ -4848,11 +4853,13 @@ function buildHRC(){
       <th rowspan="2" style="text-align:right;">Total Projects</th>
       <th rowspan="2" style="text-align:right;">Installation Completed</th>
       <th rowspan="2" style="text-align:right;">Project Completed</th>
+      <th rowspan="2" style="text-align:right;" title="Installation done, O&amp;M / handover pending">Handover Pending</th>
       <th rowspan="2" style="text-align:right;">Cancelled &amp; Hold</th>
       <th rowspan="2" style="text-align:right;">Not Assigned</th>
       <th rowspan="2" style="text-align:right;" title="PE assigned but vendor not finalized">Vendor Not Finalized</th>
-      <th rowspan="2" style="text-align:right;">Pending</th>
-      <th colspan="4" style="text-align:center;border-left:1px solid var(--border2);border-right:1px solid var(--border2);">Activity Updated (from Pending)</th>
+      <th rowspan="2" style="text-align:right;" title="On Going + Handover Pending">Total Pending</th>
+      <th rowspan="2" style="text-align:right;" title="PE assigned, vendor finalized, installation not done">On Going</th>
+      <th colspan="4" style="text-align:center;border-left:1px solid var(--border2);border-right:1px solid var(--border2);">Activity Updated (from On Going)</th>
       <th rowspan="2" style="text-align:right;">Not Updated</th>
     </tr>
     <tr>
@@ -4862,7 +4869,7 @@ function buildHRC(){
       <th style="text-align:right;top:33px;border-right:1px solid var(--border2);">Without Visit</th>
     </tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="14" class="empty">No leads match the selected filters</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="16" class="empty">No leads match the selected filters</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
@@ -4871,15 +4878,17 @@ function buildHRC(){
     `<td style="text-align:right;font-weight:600;">${c.total}</td>`+
     cell(c.inst,'#34c98a',c.total)+
     cell(c.done,'#0d9488',c.total)+
+    cell(c.handover,'#3bc0d8',c.total)+
     cell(c.ch,'#9b6dff',c.total)+
     cell(c.na,'#e74c3c',c.total)+
     cell(c.vnf,'#8b92b0',c.total)+
-    cell(c.pending,'#f5a623',c.total)+
-    cell(c.upd,'#34c98a',c.pending,'border-left:1px solid var(--border2);')+
+    cell(c.tpending,'#e8743b',c.total)+
+    cell(c.ongoing,'#f5a623',c.total)+
+    cell(c.upd,'#34c98a',c.ongoing,'border-left:1px solid var(--border2);')+
     cell(c.noact,'#f5a623',c.upd)+
     cell(c.onsite,'#34c98a',c.upd)+
     cell(c.without,'#3bc0d8',c.upd,'border-right:1px solid var(--border2);')+
-    cell(c.notupd,'#e74c3c',c.pending);
+    cell(c.notupd,'#e74c3c',c.ongoing);
 
   const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
     <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand)}</tr>`;
