@@ -539,39 +539,40 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
   </div>
 
   <!-- HIERARCHY REPORT TAB -->
-  <div id="tab-hrc" class="tab-content">
-    <div class="pe-filter-bar">
-      <div class="pe-filter-group"><label>Month</label><select id="hrc-f-month" onchange="onHRCMonthChange()"></select></div>
-<div class="pe-filter-group"><label>Week</label>
-        <select id="hrc-f-week" onchange="onHRCWeekChange()">
-          <option value="">All Weeks</option>
-          <option value="1">Week 1 (1–7)</option>
-          <option value="2">Week 2 (8–14)</option>
-          <option value="3">Week 3 (15–21)</option>
-          <option value="4">Week 4 (22–28)</option>
-          <option value="5">Week 5 (29–end)</option>
-        </select>
-      </div>
-      <div class="pe-filter-group"><label>Date</label>
-        <select id="hrc-f-date" onchange="onHRCDateChange()"><option value="">All Days</option></select>
-      </div>
-      <div class="pe-fdivider"></div>
-      <div class="pe-filter-actions">
-        <span class="spacer"></span>
-        <div style="display:flex;gap:8px;">
-          <button class="pe-clr-btn" onclick="expandAllHRC()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button>
-          <button class="pe-clr-btn" onclick="collapseAllHRC()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button>
-          <button class="pe-clr-btn" onclick="clearHRCFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear</button>
-        </div>
-      </div>
-    </div>
-    <div style="padding:16px 24px 24px;">
-      <div class="section-title">Hierarchy Report <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">Cluster Head → City Manager → PE → Project · click + to expand</span></div>
-      <div class="card" style="padding:0;overflow:hidden;">
-        <div class="table-wrap" style="max-height:78vh;overflow:auto;"><table class="hrc-table"><thead id="hrc-head"></thead><tbody id="hrc-body"></tbody></table></div>
-      </div>
+ <div class="pe-filter-bar">
+  <div class="pe-filter-group"><label>Month</label><select id="hrc-f-month" onchange="onHRCMonthChange()"></select></div>
+  <div class="pe-filter-group"><label>Week</label>
+    <select id="hrc-f-week" onchange="onHRCWeekChange()">
+      <option value="">All Weeks</option>
+      <option value="1">Week 1 (1–7)</option>
+      <option value="2">Week 2 (8–14)</option>
+      <option value="3">Week 3 (15–21)</option>
+      <option value="4">Week 4 (22–28)</option>
+      <option value="5">Week 5 (29–end)</option>
+    </select>
+  </div>
+  <div class="pe-filter-group"><label>Date</label>
+    <select id="hrc-f-date" onchange="onHRCDateChange()"><option value="">All Days</option></select>
+  </div>
+  <div class="pe-fdivider"></div>
+  <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="hrc-ms-city"></div></div>
+  <div class="pe-filter-group"><label>Cluster Head</label><div class="pov-ms" id="hrc-ms-cluster"></div></div>
+  <div class="pe-filter-group"><label>City Manager</label><div class="pov-ms" id="hrc-ms-citymgr"></div></div>
+  <div class="pe-filter-group"><label>PE</label><div class="pov-ms" id="hrc-ms-pe"></div></div>
+  <div class="pe-filter-group"><label>Project Status</label><div class="pov-ms" id="hrc-ms-status"></div></div>
+  <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="hrc-ms-sizecat"></div></div>
+  <div class="pe-filter-group"><label>Delay</label><div class="pov-ms" id="hrc-ms-delay"></div></div>
+  <div class="pe-filter-group"><label>Aging</label><div class="pov-ms" id="hrc-ms-aging"></div></div>
+  <div class="pe-fdivider"></div>
+  <div class="pe-filter-actions">
+    <span class="spacer"></span>
+    <div style="display:flex;gap:8px;">
+      <button class="pe-clr-btn" onclick="expandAllHRC()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button>
+      <button class="pe-clr-btn" onclick="collapseAllHRC()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button>
+      <button class="pe-clr-btn" onclick="clearHRCFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear</button>
     </div>
   </div>
+</div>
 
   <!-- PROJECT MONTHLY REPORT TAB -->
   <div id="tab-pmr" class="tab-content">
@@ -4639,11 +4640,100 @@ function onHRCMonthChange(){ populateHRCDates(); buildHRC(); }
 // Week and Date are mutually exclusive (a single day overrides the week range)
 function onHRCWeekChange(){ const d=document.getElementById('hrc-f-date'); if(d&&document.getElementById('hrc-f-week').value)d.value=''; buildHRC(); }
 function onHRCDateChange(){ const w=document.getElementById('hrc-f-week'); if(w&&document.getElementById('hrc-f-date').value)w.value=''; buildHRC(); }
+
+
+  // ── HRC multi-select filters ──────────────────────────────────
+const HRC_MS_CFG={
+  city:   {all:'All Cities',    ph:'Search cities…'},
+  cluster:{all:'All Clusters',  ph:'Search clusters…'},
+  citymgr:{all:'All City Mgrs', ph:'Search city managers…'},
+  pe:     {all:'All PEs',       ph:'Search PEs…'},
+  status: {all:'All Statuses',  ph:'Search status…'},
+  sizecat:{all:'All Sizes',     ph:'Search size…'},
+  delay:  {all:'All Delay',     ph:'Search delay…'},
+  aging:  {all:'All Aging',     ph:'Search aging…'}
+};
+const HRC_DELAY_OPTS=['On Time','No PO data',...DELAY_LABELS.map(l=>'Delayed '+l+' days')];
+let _hrcMS={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set(),status:new Set(),sizecat:new Set(),delay:new Set(),aging:new Set()};
+let _hrcAll={city:[],cluster:[],citymgr:[],pe:[],status:POV_STATUSES.slice(),sizecat:SIZE_CATEGORIES.slice(),delay:HRC_DELAY_OPTS.slice(),aging:AGING_LABELS.slice()};
+
+function hrcBuildMS(){
+  const sets={city:new Set(),cluster:new Set(),citymgr:new Set(),pe:new Set()};
+  const colOf={city:'CITY',cluster:'CLUSTER',citymgr:'CITYMGR',pe:'PE'};
+  D.lead.r.forEach(x=>{if(!lv(x,LEAD_COL.PID))return;Object.keys(sets).forEach(k=>{const val=lv(x,LEAD_COL[colOf[k]]);if(val)sets[k].add(val);});});
+  Object.keys(sets).forEach(k=>{_hrcAll[k]=[...sets[k]].sort((a,b)=>a.localeCompare(b));_hrcMS[k]=new Set([..._hrcMS[k]].filter(v=>sets[k].has(v)));});
+  Object.keys(HRC_MS_CFG).forEach(key=>{
+    const host=document.getElementById('hrc-ms-'+key);if(!host)return;
+    const cfg=HRC_MS_CFG[key];
+    host.innerHTML=`
+      <div class="pov-ms-control" onclick="hrcToggleMS('${key}')"><span class="pov-ms-text placeholder" id="hrc-ms-text-${key}">${cfg.all}</span><i class="ti ti-chevron-down"></i></div>
+      <div class="pov-ms-panel">
+        <input type="text" class="pov-ms-search" id="hrc-ms-search-${key}" placeholder="${cfg.ph}" oninput="hrcRenderOpts('${key}')" onclick="event.stopPropagation()"/>
+        <div class="pov-ms-actions"><button onclick="event.stopPropagation();hrcSelectAll('${key}')">Select all</button><button onclick="event.stopPropagation();hrcClearMS('${key}')">Clear</button></div>
+        <div class="pov-ms-options" id="hrc-ms-options-${key}"></div>
+      </div>`;
+    hrcRenderOpts(key);hrcUpdateCtl(key);
+  });
+}
+function hrcRenderOpts(key){
+  const box=document.getElementById('hrc-ms-options-'+key);if(!box)return;
+  const q=((document.getElementById('hrc-ms-search-'+key)||{}).value||'').trim().toLowerCase();
+  const html=_hrcAll[key].map((o,i)=>({o,i})).filter(({o})=>!q||o.toLowerCase().includes(q)).map(({o,i})=>
+    `<label class="pov-ms-opt" onclick="event.stopPropagation()"><input type="checkbox" ${_hrcMS[key].has(o)?'checked':''} onchange="hrcToggleOpt('${key}',${i})"/><span class="lbl" title="${o.replace(/"/g,'&quot;')}">${pemrEsc(o)}</span></label>`).join('');
+  box.innerHTML=html||'<div class="pov-ms-empty">No matches</div>';
+}
+function hrcToggleOpt(key,i){const o=_hrcAll[key][i];if(_hrcMS[key].has(o))_hrcMS[key].delete(o);else _hrcMS[key].add(o);hrcUpdateCtl(key);buildHRC();}
+function hrcSelectAll(key){const q=((document.getElementById('hrc-ms-search-'+key)||{}).value||'').trim().toLowerCase();_hrcAll[key].filter(o=>!q||o.toLowerCase().includes(q)).forEach(o=>_hrcMS[key].add(o));hrcRenderOpts(key);hrcUpdateCtl(key);buildHRC();}
+function hrcClearMS(key){_hrcMS[key].clear();hrcRenderOpts(key);hrcUpdateCtl(key);buildHRC();}
+function hrcUpdateCtl(key){
+  const t=document.getElementById('hrc-ms-text-'+key);if(!t)return;
+  const s=_hrcMS[key];
+  if(!s.size){t.textContent=HRC_MS_CFG[key].all;t.classList.add('placeholder');}
+  else if(s.size===1){t.textContent=[...s][0];t.classList.remove('placeholder');}
+  else{t.textContent=s.size+' selected';t.classList.remove('placeholder');}
+}
+function hrcToggleMS(key){
+  const host=document.getElementById('hrc-ms-'+key);if(!host)return;
+  const was=host.classList.contains('open');
+  document.querySelectorAll('.pov-ms.open').forEach(el=>el.classList.remove('open'));
+  if(!was){host.classList.add('open');const s=document.getElementById('hrc-ms-search-'+key);if(s){s.value='';hrcRenderOpts(key);setTimeout(()=>s.focus(),0);}}
+}
+
+function hrcDelayOf(x){
+  const d=povComputeDelay(x);
+  if(!d)return 'No PO data';
+  if(d.delayBy<=0||d.isDone)return 'On Time';
+  for(let i=0;i<DELAY_BUCKETS.length;i++){const [lo,hi]=DELAY_BUCKETS[i];if(d.delayBy>=lo&&d.delayBy<=hi)return 'Delayed '+DELAY_LABELS[i]+' days';}
+  return 'On Time';
+}
+// Mutually exclusive bucket for every lead
+function hrcBucket(x){
+  const h=povHoldInfo(x);
+  if(h.cancelled||h.onHold)return 'ch';
+  if(!lv(x,LEAD_COL.PE))return 'na';
+  if(!vendorFinalizeDate(x))return 'vnf';
+  if(computeProjectMetrics(lv(x,LEAD_COL.PID)).status==='done')return 'done';
+  return 'pending';
+}
+function hrcRowPasses(x){
+  const f=_hrcMS;
+  if(f.city.size&&!f.city.has(lv(x,LEAD_COL.CITY)))return false;
+  if(f.cluster.size&&!f.cluster.has(lv(x,LEAD_COL.CLUSTER)))return false;
+  if(f.citymgr.size&&!f.citymgr.has(lv(x,LEAD_COL.CITYMGR)))return false;
+  if(f.pe.size&&!f.pe.has(lv(x,LEAD_COL.PE)))return false;
+  if(f.status.size&&!povProjectStatuses(x).some(t=>f.status.has(t)))return false;
+  if(f.sizecat.size&&!f.sizecat.has(sizeCategoryOf(x)))return false;
+  if(f.delay.size&&!f.delay.has(hrcDelayOf(x)))return false;
+  if(f.aging.size&&!f.aging.has(povAgingOf(x)))return false;
+  return true;
+}
+
 function clearHRCFilters(){
   const m=document.getElementById('hrc-f-month');if(m&&m.options.length)m.selectedIndex=Math.min(1,m.options.length-1);
   const w=document.getElementById('hrc-f-week');if(w)w.value='';
   populateHRCDates();
   const dd=document.getElementById('hrc-f-date');if(dd)dd.value='';
+  Object.keys(_hrcMS).forEach(k=>{_hrcMS[k].clear();hrcRenderOpts(k);hrcUpdateCtl(k);});
   _hrcExpanded.clear();
   buildHRC();
 }
@@ -4655,18 +4745,18 @@ function buildHRC(){
   const head=document.getElementById('hrc-head'),body=document.getElementById('hrc-body');
   if(!head||!body)return;
 
-  // Time bounds (optional)
   let yy=null,mm=null,dayStart=null,dayEnd=null;
   if(monthVal){
     [yy,mm]=monthVal.split('-').map(Number);
-    const daysInMonth=new Date(yy,mm,0).getDate();
-    dayStart=1;dayEnd=daysInMonth;
-    if(dateVal){const dd=Number(dateVal);dayStart=dd;dayEnd=dd;}        // single day overrides week
-    else if(weekVal){const w=Number(weekVal);dayStart=(w-1)*7+1;dayEnd=Math.min(w*7,daysInMonth);}
+    const dim=new Date(yy,mm,0).getDate();
+    dayStart=1;dayEnd=dim;
+    if(dateVal){dayStart=dayEnd=Number(dateVal);}
+    else if(weekVal){const w=Number(weekVal);dayStart=(w-1)*7+1;dayEnd=Math.min(w*7,dim);}
   }
 
-  // Per-project attendance stats in window
-  const projAtt={}; // pid -> {onsite, without, noact, hasAny}
+  // Best attendance status per project inside the time window
+  const prio={'onsite visit':4,'without visit update':3,'no activity':2};
+  const projAtt={};
   D.att.r.forEach(x=>{
     const pid=v(x,ATT_COL.PID),d=parseDate(v(x,ATT_COL.DATE));
     if(!pid||!d)return;
@@ -4674,111 +4764,136 @@ function buildHRC(){
       if(d.getFullYear()!==yy||d.getMonth()!==mm-1)return;
       const dd=d.getDate();if(dd<dayStart||dd>dayEnd)return;
     }
-    if(!projAtt[pid])projAtt[pid]={onsite:0,without:0,noact:0,hasAny:false};
-    projAtt[pid].hasAny=true;
     const st=v(x,ATT_COL.M).toLowerCase();
-    if(st==='onsite visit')projAtt[pid].onsite++;
-    else if(st==='without visit update')projAtt[pid].without++;
-    else if(st==='no activity')projAtt[pid].noact++;
+    const p=prio[st]||1;
+    if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  // Hierarchy: cluster → cm → pe → projects[]
+  const KEYS=['total','inst','done','ch','na','vnf','pending','upd','noact','onsite','without','notupd'];
+  const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
+  const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
+  const projC=x=>{
+    const pid=lv(x,LEAD_COL.PID),c=zeroC(),b=hrcBucket(x);
+    const m=computeProjectMetrics(pid);
+    c.total=1;
+    if(m.installStatus==='done')c.inst=1;
+    if(b==='done')c.done=1;
+    else if(b==='ch')c.ch=1;
+    else if(b==='na')c.na=1;
+    else if(b==='vnf')c.vnf=1;
+    else{
+      c.pending=1;
+      const a=projAtt[pid];
+      if(a){
+        c.upd=1;
+        if(a.st==='no activity')c.noact=1;
+        else if(a.st==='onsite visit')c.onsite=1;
+        else if(a.st==='without visit update')c.without=1;
+      }else c.notupd=1;
+    }
+    return c;
+  };
+
+  // cluster → city manager → PE → project
   const tree={};
   D.lead.r.forEach(x=>{
-    const pid=lv(x,LEAD_COL.PID);if(!pid)return;
-    const cluster=lv(x,LEAD_COL.CLUSTER)||'(No Cluster Head)';
+    const pid=lv(x,LEAD_COL.PID);if(!pid||!hrcRowPasses(x))return;
+    const cl=lv(x,LEAD_COL.CLUSTER)||'(No Cluster Head)';
     const cm=lv(x,LEAD_COL.CITYMGR)||'(No City Manager)';
     const pe=lv(x,LEAD_COL.PE)||'(PE Not Assigned)';
-    const pname=lv(x,LEAD_COL.PNAME)||pid;
-    const city=lv(x,LEAD_COL.CITY)||'—';
-    if(!tree[cluster])tree[cluster]={};
-    if(!tree[cluster][cm])tree[cluster][cm]={};
-    if(!tree[cluster][cm][pe])tree[cluster][cm][pe]={};
-    tree[cluster][cm][pe][pid]={pname,city};
+    ((((tree[cl]=tree[cl]||{})[cm]=tree[cl][cm]||{})[pe]=tree[cl][cm][pe]||{})[pid])={x,pname:lv(x,LEAD_COL.PNAME)||pid,city:lv(x,LEAD_COL.CITY)||'—'};
   });
 
-  // Counters
-// Counters — 'pending' here means "no attendance update"; separately track project-status Completed/Pending
-  const projC=pid=>{
-    const a=projAtt[pid]||{onsite:0,without:0,noact:0,hasAny:false};
-    const m=computeProjectMetrics(pid);
-    return {projects:1,updated:a.hasAny?1:0,pending:a.hasAny?0:1,onsite:a.onsite,without:a.without,noact:a.noact,completed:m.status==='done'?1:0,projPending:m.status==='pending'?1:0,pctSum:m.weightedPct||0};
-  };
-  const sumC=(a,b)=>({projects:a.projects+b.projects,updated:a.updated+b.updated,pending:a.pending+b.pending,onsite:a.onsite+b.onsite,without:a.without+b.without,noact:a.noact+b.noact,completed:a.completed+b.completed,projPending:a.projPending+b.projPending,pctSum:a.pctSum+b.pctSum});
-  const zeroC={projects:0,updated:0,pending:0,onsite:0,without:0,noact:0,completed:0,projPending:0,pctSum:0};
-
-  // Render rows respecting expansion state
-  const rows=[];
+  const rows=[];const grand=zeroC();
   Object.keys(tree).sort().forEach(cluster=>{
-    const cKey='c:'+cluster;
-    const cmsObj=tree[cluster];
-    let cCounts={...zeroC};
-    const cmKeys=Object.keys(cmsObj).sort();
-    cmKeys.forEach(cm=>{Object.keys(cmsObj[cm]).forEach(pe=>{Object.keys(cmsObj[cm][pe]).forEach(pid=>{cCounts=sumC(cCounts,projC(pid));});});});
-    const cExpanded=_hrcExpanded.has(cKey);
-    rows.push({level:0,key:cKey,label:cluster,counts:cCounts,expandable:cmKeys.length>0,expanded:cExpanded});
-    if(!cExpanded)return;
+    const cKey='c:'+cluster,cmsObj=tree[cluster],cmKeys=Object.keys(cmsObj).sort(),cC=zeroC();
+    cmKeys.forEach(cm=>Object.keys(cmsObj[cm]).forEach(pe=>Object.keys(cmsObj[cm][pe]).forEach(pid=>sumC(cC,projC(cmsObj[cm][pe][pid].x)))));
+    sumC(grand,cC);
+    const cExp=_hrcExpanded.has(cKey);
+    rows.push({level:0,key:cKey,label:cluster,counts:cC,expandable:true,expanded:cExp});
+    if(!cExp)return;
     cmKeys.forEach(cm=>{
-      const cmKey=cKey+'|'+cm;
-      const pesObj=cmsObj[cm];
-      const peKeys=Object.keys(pesObj).sort();
-      let cmCounts={...zeroC};
-      peKeys.forEach(pe=>{Object.keys(pesObj[pe]).forEach(pid=>{cmCounts=sumC(cmCounts,projC(pid));});});
-      const cmExpanded=_hrcExpanded.has(cmKey);
-      rows.push({level:1,key:cmKey,label:cm,counts:cmCounts,expandable:peKeys.length>0,expanded:cmExpanded});
-      if(!cmExpanded)return;
+      const cmKey=cKey+'|'+cm,pesObj=cmsObj[cm],peKeys=Object.keys(pesObj).sort(),cmC=zeroC();
+      peKeys.forEach(pe=>Object.keys(pesObj[pe]).forEach(pid=>sumC(cmC,projC(pesObj[pe][pid].x))));
+      const cmExp=_hrcExpanded.has(cmKey);
+      rows.push({level:1,key:cmKey,label:cm,counts:cmC,expandable:true,expanded:cmExp});
+      if(!cmExp)return;
       peKeys.forEach(pe=>{
-        const peKey=cmKey+'|'+pe;
-        const pidsObj=pesObj[pe];
-        const pidKeys=Object.keys(pidsObj);
-        let peCounts={...zeroC};
-        pidKeys.forEach(pid=>{peCounts=sumC(peCounts,projC(pid));});
-        const peExpanded=_hrcExpanded.has(peKey);
-        rows.push({level:2,key:peKey,label:pe,counts:peCounts,expandable:pidKeys.length>0,expanded:peExpanded});
-        if(!peExpanded)return;
-        pidKeys.sort((a,b)=>(pidsObj[a].pname||a).localeCompare(pidsObj[b].pname||b)).forEach(pid=>{
-          rows.push({level:3,key:peKey+'|'+pid,label:pidsObj[pid].pname,sublabel:pid+' · '+pidsObj[pid].city,counts:projC(pid),expandable:false,pid});
+        const peKey=cmKey+'|'+pe,pidsObj=pesObj[pe],pidKeys=Object.keys(pidsObj),peC=zeroC();
+        pidKeys.forEach(pid=>sumC(peC,projC(pidsObj[pid].x)));
+        const peExp=_hrcExpanded.has(peKey);
+        rows.push({level:2,key:peKey,label:pe,counts:peC,expandable:true,expanded:peExp});
+        if(!peExp)return;
+        pidKeys.sort((a,b)=>pidsObj[a].pname.localeCompare(pidsObj[b].pname)).forEach(pid=>{
+          const it=pidsObj[pid];
+          rows.push({level:3,key:peKey+'|'+pid,label:it.pname,sublabel:pid+' · '+it.city,counts:projC(it.x),expandable:false});
         });
       });
     });
   });
 
-  head.innerHTML=`<tr><th style="width:34px;text-align:center;">#</th><th>Cluster Head / City Manager / PE / Project</th><th style="text-align:right;">Projects</th><th style="text-align:right;">Updated</th><th style="text-align:right;">Not Updated</th><th style="text-align:right;">Onsite Visit</th><th style="text-align:right;">Without Visit</th><th style="text-align:right;">No Activity</th></tr>`;
+  head.innerHTML=
+   `<tr>
+      <th rowspan="2" style="width:34px;text-align:center;">#</th>
+      <th rowspan="2">Cluster Head / City Manager / PE / Project</th>
+      <th rowspan="2" style="text-align:right;">Total Projects</th>
+      <th rowspan="2" style="text-align:right;">Installation Completed</th>
+      <th rowspan="2" style="text-align:right;">Project Completed</th>
+      <th rowspan="2" style="text-align:right;">Cancelled &amp; Hold</th>
+      <th rowspan="2" style="text-align:right;">Not Assigned</th>
+      <th rowspan="2" style="text-align:right;" title="PE assigned but vendor not finalized">Vendor Not Finalized</th>
+      <th rowspan="2" style="text-align:right;">Pending</th>
+      <th colspan="4" style="text-align:center;border-left:1px solid var(--border2);border-right:1px solid var(--border2);">Activity Updated (from Pending)</th>
+      <th rowspan="2" style="text-align:right;">Not Updated</th>
+    </tr>
+    <tr>
+      <th style="text-align:right;top:33px;border-left:1px solid var(--border2);">Updated</th>
+      <th style="text-align:right;top:33px;">No Activity</th>
+      <th style="text-align:right;top:33px;">Onsite Visit</th>
+      <th style="text-align:right;top:33px;border-right:1px solid var(--border2);">Without Visit</th>
+    </tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="8" class="empty">No data</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="14" class="empty">No leads match the selected filters</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
+  const cell=(n,color,base,extra)=>`<td style="text-align:right;color:${n?color:'var(--muted)'};font-weight:500;${extra||''}">${n?`${n}${base?` <span style="color:var(--muted);font-weight:400;font-size:10px;">(${Math.round(n/base*100)}%)</span>`:''}`:'—'}</td>`;
+  const countCells=(c)=>
+    `<td style="text-align:right;font-weight:600;">${c.total}</td>`+
+    cell(c.inst,'#34c98a',c.total)+
+    cell(c.done,'#0d9488',c.total)+
+    cell(c.ch,'#9b6dff',c.total)+
+    cell(c.na,'#e74c3c',c.total)+
+    cell(c.vnf,'#8b92b0',c.total)+
+    cell(c.pending,'#f5a623',c.total)+
+    cell(c.upd,'#34c98a',c.pending,'border-left:1px solid var(--border2);')+
+    cell(c.noact,'#f5a623',c.upd)+
+    cell(c.onsite,'#34c98a',c.upd)+
+    cell(c.without,'#3bc0d8',c.upd,'border-right:1px solid var(--border2);')+
+    cell(c.notupd,'#e74c3c',c.pending);
 
-  let clusterIdx=0;
-  body.innerHTML=rows.map(r=>{
-    const indent=r.level*24;
-    const lvlIcon=levelIcons[r.level];
-    const lvlColor=levelColors[r.level];
-    const fontWeight=r.level===3?500:600;
+  const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
+    <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand)}</tr>`;
+
+  let ci_=0;
+  body.innerHTML=grandRow+rows.map(r=>{
+    const indent=r.level*24,col=levelColors[r.level],fw=r.level===3?500:600;
     const toggle=r.expandable
-      ? `<button class="hrc-tg" onclick="toggleHRC('${r.key.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" style="color:${lvlColor};">${r.expanded?'−':'+'}</button>`
-      : `<span style="display:inline-block;width:28px;"></span>`;
-    if(r.level===0)clusterIdx++;
-    const numberCell=r.level===0?`<td style="color:var(--muted);text-align:center;font-weight:500;">${clusterIdx}</td>`:`<td></td>`;
-    const labelNode=r.level===3
-      ? `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>${r.sublabel?`<div style="font-size:10px;color:var(--muted);margin-left:0;margin-top:2px;">${pemrEsc(r.sublabel)}</div>`:''}`
-      : `<span style="font-weight:${fontWeight};">${pemrEsc(r.label)}</span>`;
-    const projCount=r.counts.projects;
-
+      ?`<button class="hrc-tg" onclick="toggleHRC('${r.key.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" style="color:${col};">${r.expanded?'−':'+'}</button>`
+      :`<span style="display:inline-block;width:28px;"></span>`;
+    if(r.level===0)ci_++;
+    const label=r.level===3
+      ?`<span style="font-weight:${fw};">${pemrEsc(r.label)}</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${pemrEsc(r.sublabel)}</div>`
+      :`<span style="font-weight:${fw};">${pemrEsc(r.label)}</span>`;
     return `<tr class="hrc-row-${r.level}">
-      ${numberCell}
-      <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${lvlIcon}" style="color:${lvlColor};font-size:14px;"></i>${labelNode}</span></td>
-      <td style="text-align:right;font-weight:${fontWeight};color:${lvlColor};">${projCount}</td>
-<td style="text-align:right;color:${r.counts.updated?'#34c98a':'var(--muted)'};font-weight:500;">${r.counts.updated?`${r.counts.updated} <span style="color:var(--muted);font-weight:400;font-size:11px;">(${projCount?Math.round(r.counts.updated/projCount*100):0}%)</span>`:'—'}</td>
-      <td style="text-align:right;color:${r.counts.pending?'#e74c3c':'var(--muted)'};font-weight:500;">${r.counts.pending?`${r.counts.pending} <span style="color:var(--muted);font-weight:400;font-size:11px;">(${projCount?Math.round(r.counts.pending/projCount*100):0}%)</span>`:'—'}</td>
-      <td style="text-align:right;color:${r.counts.onsite?'#34c98a':'var(--muted)'};">${r.counts.onsite?`${r.counts.onsite} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.onsite/r.counts.updated*100):0}%)</span>`:'—'}</td>
-      <td style="text-align:right;color:${r.counts.without?'#3bc0d8':'var(--muted)'};">${r.counts.without?`${r.counts.without} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.without/r.counts.updated*100):0}%)</span>`:'—'}</td>
-      <td style="text-align:right;color:${r.counts.noact?'#f5a623':'var(--muted)'};">${r.counts.noact?`${r.counts.noact} <span style="color:var(--muted);font-size:11px;">(${r.counts.updated?Math.round(r.counts.noact/r.counts.updated*100):0}%)</span>`:'—'}</td>
+      <td style="color:var(--muted);text-align:center;font-weight:500;">${r.level===0?ci_:''}</td>
+      <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${levelIcons[r.level]}" style="color:${col};font-size:14px;"></i>${label}</span></td>
+      ${countCells(r.counts)}
     </tr>`;
-    
   }).join('');
 }
+
+  
 
   // ── POV DRILL-DOWN (click cards / cities / buckets / pie for breakdown) ──
 (function(){
