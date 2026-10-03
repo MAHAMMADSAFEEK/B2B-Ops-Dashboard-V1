@@ -618,7 +618,31 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     </div>
   </div>
 
-  
+    <button class="tab" onclick="switchTab('iss',this)"><i class="ti ti-bug"></i> Issue Tracker</button>
+
+    <!-- ISSUE TRACKER TAB -->
+  <div id="tab-iss" class="tab-content">
+    <div class="pe-filter-bar">
+      <div class="pe-filter-group"><label>City</label><div class="pov-ms" id="iss-ms-city"></div></div>
+      <div class="pe-filter-group"><label>PM</label><div class="pov-ms" id="iss-ms-pm"></div></div>
+      <div class="pe-filter-group"><label>Status</label><div class="pov-ms" id="iss-ms-status"></div></div>
+      <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="iss-ms-size"></div></div>
+      <div class="pe-fdivider"></div>
+      <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearISSFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
+    </div>
+    <div style="padding:16px 24px 24px;">
+      <div class="section-title">Issue Tracker <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">CT Daily Review Tracker · click any card / number for the project list</span></div>
+      <div id="iss-note"></div>
+      <div class="metrics" id="iss-metrics"></div>
+      <div class="charts-grid">
+        <div class="card"><div class="card-title"><i class="ti ti-list-details"></i> Status-wise <span style="font-size:11px;font-weight:400;">· click for City / Size split</span></div><div id="iss-status"></div></div>
+        <div class="card"><div class="card-title"><i class="ti ti-clock-exclamation"></i> Aging <span style="font-size:11px;font-weight:400;">· open issues only</span></div><div id="iss-aging"></div></div>
+      </div>
+      <div class="card"><div class="card-title"><i class="ti ti-user-cog"></i> PM-wise Issues</div><div class="table-wrap" id="iss-pm"></div></div>
+      <div class="card"><div class="card-title"><i class="ti ti-table"></i> Issue Detail</div>
+        <div class="table-wrap" style="max-height:70vh;overflow:auto;"><table><thead id="iss-head"></thead><tbody id="iss-body"></tbody></table></div></div>
+    </div>
+  </div>
 
   <!-- PROJECT MONTHLY REPORT TAB -->
   <div id="tab-pmr" class="tab-content">
@@ -883,6 +907,12 @@ const SHEETS={
   pmr:'676633612'      // PM Review
 };
 
+const SID2='17GaCzIEOmyx7EtcwonVLnlkgROrtujyPqpv5APsbSek';
+const SHEETS2={
+  pmr:'2095460976',    // PM Review
+  issue:'419894140'    // CT Daily Review Tracker
+};
+
 let D={
   lead:{h:[],r:[]},
   pe:{h:[],r:[]},
@@ -893,16 +923,17 @@ let D={
   vendor:{h:[],r:[]},
   daily:{h:[],r:[]},
   cred:{h:[],r:[]},
-  pmr:{h:[],r:[]}
+  pmr:{h:[],r:[]},
+  issue:{h:[],r:[]}
 };
 
 // ── Helpers ───────────────────────────────────────────────────
-const csvUrl=gid=>`https://docs.google.com/spreadsheets/d/${SID}/export?format=csv&gid=${gid}`;
+const csvUrl=(gid,sid)=>`https://docs.google.com/spreadsheets/d/${sid||SID}/export?format=csv&gid=${gid}`;
 function ci(headers,...kws){for(const kw of kws){const i=headers.findIndex(h=>h.toLowerCase().replace(/[\s\-_]/g,'').includes(kw.toLowerCase().replace(/[\s\-_]/g,'')));if(i>=0)return i;}return -1;}
 const v=(row,i)=>i>=0?(row[i]||'').trim():'';
-function parseSheet(gid){return new Promise((res,rej)=>{
+function parseSheet(gid,sid){return new Promise((res,rej)=>{
   const timer=setTimeout(()=>rej(new Error('Timeout (>30s) loading sheet '+gid)),30000);
-  Papa.parse(csvUrl(gid),{download:true,header:false,skipEmptyLines:true,
+  Papa.parse(csvUrl(gid,sid),{download:true,header:false,skipEmptyLines:true,
     complete:r=>{clearTimeout(timer);if(!r.data.length)return rej('Empty sheet '+gid);
       const first=String((r.data[0]||[])[0]||'').trim().toLowerCase();
       if(first.startsWith('<!')||first.startsWith('<html')||first.startsWith('<!doctype'))return rej(new Error('Sheet '+gid+' is not publicly accessible (got HTML, not CSV)'));
@@ -969,11 +1000,11 @@ async function loadAll(){
   document.querySelector('.btn-refresh').classList.add('spinning');
   try{
     // Load all sheets in parallel (incl. cred)
-    const entries=Object.entries(SHEETS);
+    const entries=[...Object.entries(SHEETS).map(([k,g])=>[k,g,SID]),...Object.entries(SHEETS2).map(([k,g])=>[k,g,SID2])];
     let loaded=0;
     setOverlay(`Loading data… 0/${entries.length}`);
-    await Promise.all(entries.map(async ([key,gid])=>{
-      try{const rows=await parseSheet(gid);D[key].h=rows[0]||[];D[key].r=rows.slice(1);}
+    await Promise.all(entries.map(async ([key,gid,sid])=>{
+      try{const rows=await parseSheet(gid,sid);D[key].h=rows[0]||[];D[key].r=rows.slice(1);}
       catch(e){console.warn(`Failed: ${key}`,e);D[key].h=[];D[key].r=[];}
       loaded++;setOverlay(`Loading data… ${loaded}/${entries.length}`);
     }));
@@ -1126,7 +1157,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 });
 
-function buildAll(){buildPOV();buildRPT();buildPMR();buildPEMR();buildVMR();buildHRC();buildPMV();}
+  function buildAll(){buildPOV();buildRPT();buildPMR();buildPEMR();buildVMR();buildHRC();buildPMV();buildISS();}
 
 // ── PE ────────────────────────────────────────────────────────
 function populatePEFilters(){
@@ -6781,16 +6812,23 @@ function buildPMV(){
   const days=[];for(let d=dayStart;d<=dayEnd;d++)days.push(new Date(yy,mm-1,d));
   const todayMs=pmvDMs(new Date());
 
-  // PM Review sheet index: dayMs|projectId -> {ic,mat,ts,filled}
+  // PM Review index: dayMs|projectId -> {ic,mat,ts,rs,done,filled}
   const h=D.pmr.h;
-  const iD=0,iP=(ci(h,'ProjectID','project id')>=0?ci(h,'ProjectID','project id'):2);
-  const iIC=(ci(h,'I&C','icok')>=0?ci(h,'I&C','icok'):4),iMat=(ci(h,'Material')>=0?ci(h,'Material'):5),iTS=(ci(h,'Timestamp')>=0?ci(h,'Timestamp'):6);
+  const fx=(names,def)=>{for(const n of names){const i=h.findIndex(z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,'')===n);if(i>=0)return i;}return def;};
+  const iD=fx(['date'],0),iLead=fx(['leadid'],1),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5),iTS=fx(['timestamp'],6);
+  const issSet=issueKeySet();
   const rev={};
   D.pmr.r.forEach(x=>{
     const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
-    const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS),filled=!!(ts||ic);
+    const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS),lead=v(x,iLead);
+    let rs;
+    if(!ic)rs='Review Pending';
+    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')rs='Review Completed';
+    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))rs='Review Completed';
+    else rs='Issue to be Update';
+    const done=rs==='Review Completed';
     const k=pmvDMs(d)+'|'+pid;
-    if(!rev[k]||(filled&&!rev[k].filled))rev[k]={ic,mat,ts,filled};
+    if(!rev[k]||(done&&!rev[k].done))rev[k]={ic,mat,ts,rs,done,filled:done};
   });
 
   // group filtered projects by PM (City Manager)
@@ -6907,7 +6945,7 @@ function pmvShowDay(i,dMs){
       <td style="font-weight:500;">${pemrEsc(p.name)}</td>
       <td><span class="badge bp">${pemrEsc(p.pid)}</span></td>
       <td style="font-size:12px;">${pemrEsc(p.city)}</td>
-      <td>${ok?'<span class="badge bg">✓ Updated</span>':'<span class="badge br">Pending</span>'}</td>
+            <td>${ok?'<span class="badge bg">✓ '+pemrEsc(r.rs||'Review Completed')+'</span>':'<span class="badge br">'+pemrEsc(r.rs||'Review Pending')+'</span>'}</td>
       <td>${r.ic?pemrEsc(r.ic):'<span style="color:var(--muted);">—</span>'}</td>
       <td>${mat}</td>
       <td style="font-size:11px;white-space:nowrap;">${r.ts?pemrEsc(r.ts):'—'}</td></tr>`;
@@ -6968,7 +7006,215 @@ function pmvShowPM(i){
   </div>`);
 }
 
-  
+ // ── ISSUE TRACKER ─────────────────────────────────────────────
+const ISS_STATUSES=['Under Central Review','Under CH Review','Under PM Review','Under PE Review','Pending','Completed'];
+const ISS_INPROC=['Under Central Review','Under CH Review','Under PM Review','Under PE Review'];
+const ISS_COL={'Under Central Review':'#e0518a','Under CH Review':'#9b6dff','Under PM Review':'#4f8ef7','Under PE Review':'#3bc0d8','Pending':'#f5a623','Completed':'#34c98a'};
+const ISS_BUCKETS=[['0–3 days',0,3],['3–7 days',4,7],['7–15 days',8,15],['15–30 days',16,30],['30–45 days',31,45],['45–60 days',46,60],['>60 days',61,1e9]];
+const ISS_MS_CFG={city:'All Cities',pm:'All PMs',status:'All Statuses',size:'All Sizes'};
+let _issMS={city:new Set(),pm:new Set(),status:new Set(),size:new Set()};
+let _issAll={city:[],pm:[],status:ISS_STATUSES.slice(),size:SIZE_CATEGORIES.slice()};
+let _issRows=[],_issReg=[];
+
+function issNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function issCol(h,names){for(const n of names){const i=h.findIndex(z=>issNorm(z)===n);if(i>=0)return i;}return -1;}
+function issStatusOf(c,ch,pm,pe){
+  const L=s=>String(s||'').trim().toLowerCase();
+  if(L(c)==='open')return 'Under Central Review';
+  if(L(ch)==='open')return 'Under CH Review';
+  if(L(pm)==='open')return 'Under PM Review';
+  if(L(pe)==='open')return 'Under PE Review';
+  if([c,ch,pm,pe].some(z=>L(z)==='completed'))return 'Completed';
+  return 'Pending';
+}
+// Lead ID + day keys from the issue tracker (used by PM Review status)
+function issueKeySet(){
+  const set=new Set(),h=D.issue.h;
+  const iL=issCol(h,['leadid']),iD=issCol(h,['date']);
+  if(iL<0||iD<0)return set;
+  D.issue.r.forEach(x=>{const d=povParseHoldDate(v(x,iD)),l=v(x,iL);if(d&&l)set.add(l+'|'+pmvDMs(d));});
+  return set;
+}
+function issBuildRows(){
+  const h=D.issue.h;if(!h.length)return [];
+  const iL=issCol(h,['leadid']),iD=issCol(h,['date']),iP=issCol(h,['projectid']),iN=issCol(h,['projectname']);
+  const iC=issCol(h,['centralclosurestatus']),iH=issCol(h,['chescalationstatus']),iM=issCol(h,['pmescalationstatus']),iE=issCol(h,['escalationstatuspe']);
+  const iDesc=h.findIndex(z=>{const n=issNorm(z);return (n.includes('issue')||n.includes('remark')||n.includes('comment'))&&!n.includes('status');});
+  const miss=[['Lead ID',iL],['Date',iD],['Central closure status',iC],['CH Escalation Status',iH],['PM Escalation Status',iM],['Escalation Status (PE)',iE]].filter(z=>z[1]<0).map(z=>z[0]);
+  const note=document.getElementById('iss-note');
+  if(note)note.innerHTML=(!h.length||miss.length)?`<div style="padding:10px 12px;margin-bottom:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;font-size:12px;">Columns not found in the issue sheet: <b>${miss.join(', ')}</b>. Check the header names.</div>`:'';
+  if(miss.length)console.warn('Issue Tracker: missing columns',miss,'Headers:',h);
+  // lead id -> project id via PM Review sheet (fallback)
+  const ph=D.pmr.h,pL=issCol(ph,['leadid']),pP=issCol(ph,['projectid']);
+  const leadToPid={};
+  if(pL>=0&&pP>=0)D.pmr.r.forEach(x=>{const l=v(x,pL),p=v(x,pP);if(l&&p)leadToPid[l]=p;});
+  const leadRow={};D.lead.r.forEach(x=>{const p=lv(x,LEAD_COL.PID);if(p)leadRow[p]=x;});
+  const isAdmin=_user&&_user.role==='admin';
+  const today=new Date();today.setHours(0,0,0,0);
+  const rows=[];
+  D.issue.r.forEach(x=>{
+    const lead=iL>=0?v(x,iL):'';
+    if(!lead&&iP<0)return;
+    let pid=iP>=0?v(x,iP):'';if(!pid)pid=leadToPid[lead]||'';
+    const lr=leadRow[pid];
+    if(!lr&&!isAdmin)return;               // outside this user's scope
+    const status=issStatusOf(iC>=0?v(x,iC):'',iH>=0?v(x,iH):'',iM>=0?v(x,iM):'',iE>=0?v(x,iE):'');
+    const d=iD>=0?povParseHoldDate(v(x,iD)):null;
+    let days=null,bucket='';
+    if(status!=='Completed'&&d){
+      days=Math.max(0,Math.floor((today-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000));
+      const b=ISS_BUCKETS.find(z=>days>=z[1]&&days<=z[2]);bucket=b?b[0]:'';
+    }
+    rows.push({lead,pid:pid||'—',name:(iN>=0&&v(x,iN))||(lr?lv(lr,LEAD_COL.PNAME):'')||pid||'—',
+      city:lr?lv(lr,LEAD_COL.CITY)||'—':'—',pm:lr?lv(lr,LEAD_COL.CITYMGR)||'(No PM)':'—',pe:lr?lv(lr,LEAD_COL.PE):'',
+      size:lr?sizeCategoryOf(lr):'—',status,date:d,days,bucket,desc:iDesc>=0?v(x,iDesc):''});
+  });
+  return rows;
+}
+
+function populateISSFilters(){
+  const rows=issBuildRows();
+  _issAll.city=[...new Set(rows.map(r=>r.city))].filter(z=>z&&z!=='—').sort();
+  _issAll.pm=[...new Set(rows.map(r=>r.pm))].filter(z=>z&&z!=='—').sort();
+  Object.keys(ISS_MS_CFG).forEach(key=>{
+    const host=document.getElementById('iss-ms-'+key);if(!host)return;
+    host.innerHTML=`
+      <div class="pov-ms-control" onclick="issToggleMS('${key}')"><span class="pov-ms-text placeholder" id="iss-ms-text-${key}">${ISS_MS_CFG[key]}</span><i class="ti ti-chevron-down"></i></div>
+      <div class="pov-ms-panel">
+        <input type="text" class="pov-ms-search" id="iss-ms-search-${key}" placeholder="Search…" oninput="issRenderOpts('${key}')" onclick="event.stopPropagation()"/>
+        <div class="pov-ms-actions"><button onclick="event.stopPropagation();issSelectAll('${key}')">Select all</button><button onclick="event.stopPropagation();issClearMS('${key}')">Clear</button></div>
+        <div class="pov-ms-options" id="iss-ms-options-${key}"></div>
+      </div>`;
+    issRenderOpts(key);issUpdateCtl(key);
+  });
+}
+function issRenderOpts(key){
+  const box=document.getElementById('iss-ms-options-'+key);if(!box)return;
+  const q=((document.getElementById('iss-ms-search-'+key)||{}).value||'').trim().toLowerCase();
+  const html=_issAll[key].map((o,i)=>({o,i})).filter(({o})=>!q||o.toLowerCase().includes(q)).map(({o,i})=>
+    `<label class="pov-ms-opt" onclick="event.stopPropagation()"><input type="checkbox" ${_issMS[key].has(o)?'checked':''} onchange="issToggleOpt('${key}',${i})"/><span class="lbl">${pemrEsc(o)}</span></label>`).join('');
+  box.innerHTML=html||'<div class="pov-ms-empty">No matches</div>';
+}
+function issToggleOpt(key,i){const o=_issAll[key][i];if(_issMS[key].has(o))_issMS[key].delete(o);else _issMS[key].add(o);issUpdateCtl(key);buildISS();}
+function issSelectAll(key){const q=((document.getElementById('iss-ms-search-'+key)||{}).value||'').trim().toLowerCase();_issAll[key].filter(o=>!q||o.toLowerCase().includes(q)).forEach(o=>_issMS[key].add(o));issRenderOpts(key);issUpdateCtl(key);buildISS();}
+function issClearMS(key){_issMS[key].clear();issRenderOpts(key);issUpdateCtl(key);buildISS();}
+function issUpdateCtl(key){const t=document.getElementById('iss-ms-text-'+key);if(!t)return;const s=_issMS[key];
+  if(!s.size){t.textContent=ISS_MS_CFG[key];t.classList.add('placeholder');}else if(s.size===1){t.textContent=[...s][0];t.classList.remove('placeholder');}else{t.textContent=s.size+' selected';t.classList.remove('placeholder');}}
+function issToggleMS(key){const host=document.getElementById('iss-ms-'+key);if(!host)return;const was=host.classList.contains('open');
+  document.querySelectorAll('.pov-ms.open').forEach(el=>el.classList.remove('open'));
+  if(!was){host.classList.add('open');const s=document.getElementById('iss-ms-search-'+key);if(s){s.value='';issRenderOpts(key);setTimeout(()=>s.focus(),0);}}}
+function clearISSFilters(){Object.keys(_issMS).forEach(k=>{_issMS[k].clear();issRenderOpts(k);issUpdateCtl(k);});buildISS();}
+
+// register a list of rows and return its id (used by onclick)
+function issReg(rows){_issReg.push(rows);return _issReg.length-1;}
+
+function buildISS(){
+  _issReg=[];
+  const all=issBuildRows();
+  const rows=all.filter(r=>{
+    if(_issMS.city.size&&!_issMS.city.has(r.city))return false;
+    if(_issMS.pm.size&&!_issMS.pm.has(r.pm))return false;
+    if(_issMS.status.size&&!_issMS.status.has(r.status))return false;
+    if(_issMS.size.size&&!_issMS.size.has(r.size))return false;
+    return true;
+  });
+  _issRows=rows;
+  const total=rows.length;
+  const inproc=rows.filter(r=>ISS_INPROC.includes(r.status)),done=rows.filter(r=>r.status==='Completed'),pend=rows.filter(r=>r.status==='Pending');
+  const pct=n=>total?Math.round(n/total*100):0;
+  const card=(icon,lbl,list,color)=>`<div class="metric" style="--mc:${color};cursor:pointer;" onclick="issShowProjects('${lbl}',${issReg(list)})"><div class="micon"><i class="ti ${icon}"></i></div><div class="mlbl">${lbl}</div><div class="mval">${list.length}</div><div class="msub">${pct(list.length)}% · ${new Set(list.map(r=>r.pid)).size} project(s) · click for list</div></div>`;
+  document.getElementById('iss-metrics').innerHTML=
+    card('ti-bug','Total Issues',rows,'#4f8ef7')+card('ti-loader','In Process',inproc,'#9b6dff')+card('ti-circle-check','Completed',done,'#34c98a')+card('ti-clock','Pending',pend,'#f5a623');
+
+  // status table
+  const sBody=ISS_STATUSES.map(s=>{
+    const l=rows.filter(r=>r.status===s),c=ISS_COL[s];
+    return `<tr onclick="issStatusDetail('${s}')" style="cursor:pointer;"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c};margin-right:8px;"></span>${s}</td><td style="text-align:right;font-weight:600;color:${c};">${l.length}</td><td style="text-align:right;color:var(--muted);">${pct(l.length)}%</td></tr>`;
+  }).join('');
+  document.getElementById('iss-status').innerHTML=`<table style="font-size:12px;width:100%;"><thead><tr><th>Status</th><th style="text-align:right;">Issues</th><th style="text-align:right;">%</th></tr></thead><tbody>${sBody}</tbody><tfoot><tr style="border-top:2px solid var(--border2);"><td style="font-weight:700;">Total</td><td style="text-align:right;font-weight:700;">${total}</td><td></td></tr></tfoot></table>`;
+
+  // aging table (open issues only)
+  const open=rows.filter(r=>r.status!=='Completed');
+  const aBody=ISS_BUCKETS.map(b=>{
+    const l=open.filter(r=>r.bucket===b[0]),p=open.length?Math.round(l.length/open.length*100):0;
+    const col=b[1]>=46?'#e74c3c':b[1]>=16?'#e8743b':b[1]>=4?'#f5a623':'#34c98a';
+    return `<tr${l.length?` onclick="issShowProjects('Aging ${b[0]}',${issReg(l)})" style="cursor:pointer;"`:''}><td>${b[0]}</td><td style="text-align:right;font-weight:600;color:${col};">${l.length}</td><td style="text-align:right;color:var(--muted);">${p}%</td><td style="min-width:90px;"><div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${p}%;height:100%;background:${col};"></div></div></td></tr>`;
+  }).join('');
+  document.getElementById('iss-aging').innerHTML=`<table style="font-size:12px;width:100%;"><thead><tr><th>Aging</th><th style="text-align:right;">Open</th><th style="text-align:right;">%</th><th></th></tr></thead><tbody>${aBody}</tbody><tfoot><tr style="border-top:2px solid var(--border2);"><td style="font-weight:700;">Total open</td><td style="text-align:right;font-weight:700;">${open.length}</td><td></td><td></td></tr></tfoot></table>`;
+
+  // PM-wise
+  const pmM={};rows.forEach(r=>{(pmM[r.pm]=pmM[r.pm]||[]).push(r);});
+  const numCell=(l,label,col)=>l.length?`<td style="text-align:right;color:${col};font-weight:600;cursor:pointer;text-decoration:underline dotted;" onclick="issShowProjects('${label}',${issReg(l)})">${l.length}</td>`:'<td style="text-align:right;color:var(--muted);">—</td>';
+  const pmRows=Object.entries(pmM).sort((a,b)=>b[1].length-a[1].length).map(([pm,l],i)=>{
+    const nm=pm.replace(/'/g,"\\'"),ip=l.filter(r=>ISS_INPROC.includes(r.status)),dn=l.filter(r=>r.status==='Completed'),pn=l.filter(r=>r.status==='Pending');
+    return `<tr><td style="color:var(--muted);">${i+1}</td><td style="font-weight:500;">${pemrEsc(pm)}</td>${numCell(l,nm+' — Total','var(--text)')}${numCell(ip,nm+' — In Process','#9b6dff')}${numCell(dn,nm+' — Completed','#34c98a')}${numCell(pn,nm+' — Pending','#f5a623')}<td style="text-align:right;color:var(--muted);">${l.length?Math.round(dn.length/l.length*100):0}%</td></tr>`;
+  }).join('');
+  document.getElementById('iss-pm').innerHTML=`<table style="font-size:12px;width:100%;"><thead><tr><th>#</th><th>PM</th><th style="text-align:right;">Total</th><th style="text-align:right;">In Process</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Closure %</th></tr></thead><tbody>${pmRows||'<tr><td colspan="7" class="empty">No issues</td></tr>'}</tbody></table>`;
+
+  // detail table
+  document.getElementById('iss-head').innerHTML='<tr><th>#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PM</th><th>PE</th><th>Size</th><th>Status</th><th>Raised On</th><th>Aging</th><th>Issue</th></tr>';
+  document.getElementById('iss-body').innerHTML=issRowsHtml(rows,true)||'<tr><td colspan="11" class="empty">No issues match the filters</td></tr>';
+}
+
+function issRowsHtml(list,full){
+  const sorted=[...list].sort((a,b)=>(b.days===null?-1:b.days)-(a.days===null?-1:a.days));
+  return sorted.map((r,i)=>{
+    const c=ISS_COL[r.status],ac=r.days===null?'var(--muted)':r.days>60?'#e74c3c':r.days>30?'#e8743b':r.days>7?'#f5a623':'#34c98a';
+    const esc=r.pid.replace(/'/g,"\\'"),en=r.name.replace(/'/g,"\\'");
+    const aging=r.days===null?'<span style="color:var(--muted);">Closed</span>':`<span class="badge" style="background:${ac}22;color:${ac};border:1px solid ${ac}55;">${r.days}d · ${r.bucket}</span>`;
+    return `<tr><td style="color:var(--muted);">${i+1}</td>
+      <td><span class="badge bp">${pemrEsc(r.pid)}</span></td>
+      <td style="font-weight:500;color:#4f8ef7;cursor:pointer;" onclick="openProjectSummaryFor('${esc}','${en}')">${pemrEsc(r.name)}</td>
+      <td style="font-size:12px;">${pemrEsc(r.city)}</td><td style="font-size:12px;">${pemrEsc(r.pm)}</td>
+      <td style="font-size:12px;">${r.pe?pemrEsc(r.pe):'<span style="color:#e74c3c;">Not Assigned</span>'}</td>
+      <td style="font-size:12px;">${pemrEsc(r.size)}</td>
+      <td><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span></td>
+      <td style="font-size:11px;white-space:nowrap;">${r.date?fmtDate(r.date):'—'}</td>
+      <td>${aging}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;" title="${pemrEsc(r.desc)}">${pemrEsc(r.desc)||'—'}</td></tr>`;
+  }).join('');
+}
+
+// card / cell click → project-wise summary (grouped by project)
+function issShowProjects(title,id){
+  const list=_issReg[id]||[];
+  const byP={};list.forEach(r=>{(byP[r.pid]=byP[r.pid]||[]).push(r);});
+  const rows=Object.entries(byP).map(([pid,l])=>({pid,l,days:Math.max(-1,...l.map(r=>r.days===null?-1:r.days))})).sort((a,b)=>b.days-a.days).map(({pid,l,days},i)=>{
+    const f=l[0],cnt={};l.forEach(r=>cnt[r.status]=(cnt[r.status]||0)+1);
+    const st=Object.entries(cnt).map(([s,n])=>`<span class="badge" style="background:${ISS_COL[s]}22;color:${ISS_COL[s]};border:1px solid ${ISS_COL[s]}55;margin:1px;">${s} ×${n}</span>`).join('');
+    const esc=pid.replace(/'/g,"\\'"),en=f.name.replace(/'/g,"\\'");
+    return `<tr><td style="color:var(--muted);">${i+1}</td><td><span class="badge bp">${pemrEsc(pid)}</span></td>
+      <td style="font-weight:500;color:#4f8ef7;cursor:pointer;" onclick="openProjectSummaryFor('${esc}','${en}')">${pemrEsc(f.name)}</td>
+      <td style="font-size:12px;">${pemrEsc(f.city)}</td><td style="font-size:12px;">${pemrEsc(f.pm)}</td>
+      <td style="text-align:right;font-weight:600;">${l.length}</td><td>${st}</td>
+      <td>${days<0?'<span style="color:var(--muted);">Closed</span>':days+'d'}</td></tr>`;
+  }).join('');
+  pmvModal(`<div class="pmr-modal" style="max-width:1000px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+      <div><div style="font-size:15px;font-weight:600;">${pemrEsc(title)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${list.length} issue(s) · ${Object.keys(byP).length} project(s) · oldest open issue first</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button></div>
+    <div class="table-wrap" style="overflow:auto;"><table style="font-size:12px;width:100%;">
+      <thead><tr><th>#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PM</th><th style="text-align:right;">Issues</th><th>Status</th><th>Oldest open</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="8" class="empty">No issues</td></tr>'}</tbody></table></div></div>`);
+}
+
+// status row click → city-wise and size-wise counts
+function issStatusDetail(status){
+  const l=_issRows.filter(r=>r.status===status),total=l.length||1;
+  const grp=(key,order)=>{
+    const m={};l.forEach(r=>{(m[r[key]]=m[r[key]]||[]).push(r);});
+    const keys=order?order.filter(k=>m[k]):Object.keys(m).sort((a,b)=>m[b].length-m[a].length);
+    return `<table style="font-size:12px;width:100%;"><thead><tr><th>${key==='city'?'City':'Size'}</th><th style="text-align:right;">Issues</th><th style="text-align:right;">%</th></tr></thead><tbody>${keys.map(k=>`<tr style="cursor:pointer;" onclick="issShowProjects('${status} · ${String(k).replace(/'/g,"\\'")}',${issReg(m[k])})"><td>${pemrEsc(k)}</td><td style="text-align:right;font-weight:600;color:${ISS_COL[status]};">${m[k].length}</td><td style="text-align:right;color:var(--muted);">${Math.round(m[k].length/total*100)}%</td></tr>`).join('')}</tbody></table>`;
+  };
+  pmvModal(`<div class="pmr-modal" style="max-width:760px;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+      <div><div style="font-size:15px;font-weight:600;">${status} — Breakdown</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${l.length} issue(s) · click a row for the project list</div></div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button></div>
+    <div style="overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+      <div><div style="font-size:11px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">City-wise</div>${grp('city')}</div>
+      <div><div style="font-size:11px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Size-wise</div>${grp('size',SIZE_CATEGORIES.concat(['—']))}</div>
+    </div></div>`);
+} 
   
 loadAll();
 
