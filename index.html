@@ -5050,7 +5050,7 @@ function buildHRC(){
       <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
       <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
       <th rowspan="2" style="text-align:right;color:#e0518a;${PNK}border-left:2px solid #e0518a;" title="Not completed and past PO timeline">Delayed Projects</th>
-      <th colspan="3" style="text-align:center;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;border-right:2px solid #4f8ef7;" title="Projects expected to be reviewed by the PM in the selected period">To Be Reviewed</th>
+      <th colspan="4" style="text-align:center;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;border-right:2px solid #4f8ef7;" title="Projects expected to be reviewed by the PM in the selected period">To Be Reviewed</th>
     </tr>
     <tr>
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-left:2px solid #f5a623;">Total</th>
@@ -5060,7 +5060,8 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">No Activity</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Onsite Visit</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
-      <th style="text-align:right;top:33px;color:#34c98a;${BLU}border-left:2px solid #4f8ef7;">Reviewed</th>
+      <th style="text-align:right;top:33px;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;">To Be Reviewed</th>
+<th style="text-align:right;top:33px;color:#34c98a;${BLU}">Reviewed</th>
       <th style="text-align:right;top:33px;color:#f5a623;${BLU}">Pending</th>
       <th style="text-align:right;top:33px;color:#e74c3c;${BLU}border-right:2px solid #4f8ef7;" title="I&amp;C not OK or material issue, not yet updated in the issue tracker">Issue Highlighted</th>
     </tr>`;
@@ -5092,7 +5093,8 @@ function buildHRC(){
     cell(c.without,'#3bc0d8',c.upd,tG+'border-right:2px solid #34c98a;','without',rid)+
     cell(c.notupd,'#e74c3c',c.ongoing,tR,'notupd',rid)+
     cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid)+
-    cell(c.rvdone,'#34c98a',c.rvtotal,'border-left:2px solid #4f8ef7;font-weight:600;','rvdone',rid)+
+    cell(c.rvtotal,'#4f8ef7',0,'border-left:2px solid #4f8ef7;font-weight:700;','rvtotal',rid)+
+    cell(c.rvdone,'#34c98a',c.rvtotal,'font-weight:600;','rvdone',rid)+
     cell(c.rvpend,'#f5a623',c.rvtotal,'','rvpend',rid)+
     cell(c.rvissue,'#e74c3c',c.rvtotal,'border-right:2px solid #4f8ef7;','rvissue',rid);
 
@@ -5129,7 +5131,20 @@ function buildHRC(){
 function hrcShowList(rid,key){
   const src=rid<0?{label:'Grand Total',items:window._hrcGrandItems||[]}:(window._hrcRowList||[])[rid];
   const pc=window._hrcProjC;
-  if(!src||!pc)return;
+   if(!src||!pc)return;
+  const showIss=key.indexOf('rv')===0;
+  const issBy={};
+  if(showIss)issBuildRows().forEach(r=>{(issBy[r.pid]=issBy[r.pid]||[]).push(r);});
+  const issCell=x=>{
+    const l=issBy[lv(x,LEAD_COL.PID)]||[];
+    if(!l.length)return '<span style="color:var(--muted);font-size:11px;">No issue logged</span>';
+    return l.slice().sort((a,b)=>(b.days||0)-(a.days||0)).slice(0,4).map(r=>{
+      const c=ISS_COL[r.status]||'#8b92b0';
+      const age=r.days===null?'Closed':r.days+'d';
+      return `<div style="margin-bottom:5px;"><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span> <span style="font-size:10px;color:var(--muted);">${r.date?fmtDate(r.date):'—'} · ${age}</span>${r.desc?`<div style="font-size:11px;color:var(--text);max-width:280px;">${pemrEsc(r.desc.length>90?r.desc.slice(0,90)+'…':r.desc)}</div>`:''}</div>`;
+    }).join('')+(l.length>4?`<div style="font-size:10px;color:var(--muted);">+${l.length-4} more</div>`:'');
+  };
+  
   const items=src.items.filter(x=>pc(x)[key]>0).map(x=>({x,d:povComputeDelay(x)}));
   // most delayed first, then by name
   items.sort((a,b)=>((b.d&&b.d.delayBy>0?b.d.delayBy:0)-(a.d&&a.d.delayBy>0?a.d.delayBy:0))||lv(a.x,LEAD_COL.PNAME).localeCompare(lv(b.x,LEAD_COL.PNAME)));
@@ -5173,7 +5188,8 @@ function hrcShowList(rid,key){
       <td style="font-size:12px;">${lv(x,LEAD_COL.PE)?pemrEsc(lv(x,LEAD_COL.PE)):'<span style="color:#e74c3c;">Not Assigned</span>'}</td>
       <td><span class="badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}55;">${pemrEsc(st)}</span></td>
       <td>${delayBadge(d)}</td>
-      <td>${agingCell(x)}</td>
+       <td>${agingCell(x)}</td>
+      ${showIss?`<td>${issCell(x)}</td>`:''}
     </tr>`;
   }).join('');
 
@@ -5186,7 +5202,7 @@ function hrcShowList(rid,key){
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
     </div>
     <div class="table-wrap" style="overflow:auto;"><table style="font-size:12px;width:100%;">
-      <thead><tr><th>#</th><th>Project Name</th><th>Project ID</th><th>City</th><th>PE</th><th>Status</th><th>Delay Status</th><th>Aging</th></tr></thead>
+      <thead><tr><th>#</th><th>Project Name</th><th>Project ID</th><th>City</th><th>PE</th><th>Status</th><th>Delay Status</th><th>Aging</th>${showIss?'<th>Issue Tracker</th>':''}</tr></thead>
       <tbody>${rowsHtml||'<tr><td colspan="8" class="empty">No projects</td></tr>'}</tbody>
     </table></div>
   </div>`;
