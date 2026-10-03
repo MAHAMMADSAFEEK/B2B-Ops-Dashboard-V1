@@ -4841,7 +4841,7 @@ function hrcReviewIndex(){
     const ic=v(x,iIC),mat=v(x,iMat),lead=v(x,iLead);
     let s;
     if(!ic)s='pend';
-    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')s='done';
+    else if(/^(ok|yes)$/i.test(ic)&&/^no$/i.test(mat))s='done';
     else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
     else s='issue';
     const k=pmvDMs(d)+'|'+pid;
@@ -6959,7 +6959,7 @@ function buildPMV(){
     const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS),lead=v(x,iLead);
     let rs;
     if(!ic)rs='Review Pending';
-    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')rs='Review Completed';
+    else if(/^(ok|yes)$/i.test(ic)&&/^no$/i.test(mat))rs='Review Completed';
     else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))rs='Review Completed';
     else rs='Issue to be Update';
     const done=rs==='Review Completed';
