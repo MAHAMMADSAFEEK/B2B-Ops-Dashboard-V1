@@ -4710,6 +4710,9 @@ function populateHRCDates(){
   const [yy,mm]=monthVal.split('-').map(Number);
   const present=new Set();
   D.att.r.forEach(x=>{const d=parseDate(v(x,ATT_COL.DATE));if(d&&d.getFullYear()===yy&&d.getMonth()===mm-1)present.add(d.getDate());});
+  const _now=new Date();
+  const isCurMonth=(yy===_now.getFullYear()&&mm===_now.getMonth()+1);
+  if(isCurMonth)present.add(_now.getDate());
   const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   [...present].sort((a,b)=>a-b).forEach(dd=>{
     const dt=new Date(yy,mm-1,dd);
@@ -4717,7 +4720,8 @@ function populateHRCDates(){
     o.textContent=dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' · '+wd[dt.getDay()];
     dsel.appendChild(o);
   });
-  if(cur&&present.has(Number(cur)))dsel.value=cur; else dsel.value='';
+  if(cur&&present.has(Number(cur)))dsel.value=cur;
+  else dsel.value=isCurMonth?String(_now.getDate()):'';
 }
 
 function onHRCMonthChange(){ populateHRCDates(); buildHRC(); }
@@ -4817,13 +4821,105 @@ function hrcRowPasses(x){
 function clearHRCFilters(){
   const m=document.getElementById('hrc-f-month');if(m&&m.options.length)m.selectedIndex=Math.min(1,m.options.length-1);
   const w=document.getElementById('hrc-f-week');if(w)w.value='';
-  populateHRCDates();
   const dd=document.getElementById('hrc-f-date');if(dd)dd.value='';
+  populateHRCDates();
   Object.keys(_hrcMS).forEach(k=>{_hrcMS[k].clear();hrcRenderOpts(k);hrcUpdateCtl(k);});
   _hrcExpanded.clear();
   buildHRC();
 }
 
+
+  // PM Review status index: dayMs|projectId -> 'done' | 'issue' | 'pend'
+function hrcReviewIndex(){
+  const h=D.pmr.h,rev={};
+  const fx=(names,def)=>{for(const n of names){const i=h.findIndex(z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,'')===n);if(i>=0)return i;}return def;};
+  const iD=fx(['date'],0),iLead=fx(['leadid'],1),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
+  const issSet=issueKeySet();
+  const rank={done:3,issue:2,pend:1};
+  D.pmr.r.forEach(x=>{
+    const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
+    const ic=v(x,iIC),mat=v(x,iMat),lead=v(x,iLead);
+    let s;
+    if(!ic)s='pend';
+    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')s='done';
+    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
+    else s='issue';
+    const k=pmvDMs(d)+'|'+pid;
+    if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
+  });
+  return rev;
+}
+// '' = not expected to be reviewed in this window
+function hrcReviewStatusOf(x,rev,rvDays){
+  const pid=lv(x,LEAD_COL.PID);
+  if(!lv(x,LEAD_COL.PE))return '';
+  const vd=vendorFinalizeDate(x);if(!vd)return '';
+  const vMs=pmvDMs(vd);
+  const hi=povHoldInfo(x),m=computeProjectMetrics(pid);
+  const todayMs=pmvDMs(new Date());
+  const holds=hi.holdIntervals.filter(iv=>iv.start).map(iv=>[pmvDMs(iv.start),iv.end?pmvDMs(iv.end):todayMs]);
+  const cancelMs=hi.cancelled?(hi.cancelDate?pmvDMs(hi.cancelDate):0):null;
+  let closeMs=null;
+  if(m.installStatus==='done'&&m.endDate)closeMs=pmvDMs(m.endDate);
+  else if(m.status==='done'&&m.lastAttDate)closeMs=pmvDMs(m.lastAttDate);
+  let tracked=false,last=null;
+  for(const ms of rvDays){
+    if(ms<vMs)continue;
+    if(cancelMs!==null&&ms>=cancelMs)continue;
+    if(holds.some(iv=>ms>=iv[0]&&ms<=iv[1]))continue;
+    if(closeMs!==null&&ms>closeMs)continue;
+    tracked=true;
+    const r=rev[ms+'|'+pid];if(r)last=r;
+  }
+  if(!tracked)return '';
+  return last||'pend';
+}
+
+
+function hrcReviewIndex(){
+  const h=D.pmr.h,rev={};
+  const fx=(names,def)=>{for(const n of names){const i=h.findIndex(z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,'')===n);if(i>=0)return i;}return def;};
+  const iD=fx(['date'],0),iLead=fx(['leadid'],1),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
+  const issSet=issueKeySet();
+  const rank={done:3,issue:2,pend:1};
+  D.pmr.r.forEach(x=>{
+    const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
+    const ic=v(x,iIC),mat=v(x,iMat),lead=v(x,iLead);
+    let s;
+    if(!ic)s='pend';
+    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')s='done';
+    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
+    else s='issue';
+    const k=pmvDMs(d)+'|'+pid;
+    if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
+  });
+  return rev;
+}
+
+function hrcReviewStatusOf(x,rev,rvDays){
+  const pid=lv(x,LEAD_COL.PID);
+  if(!lv(x,LEAD_COL.PE))return '';
+  const vd=vendorFinalizeDate(x);if(!vd)return '';
+  const vMs=pmvDMs(vd);
+  const hi=povHoldInfo(x),m=computeProjectMetrics(pid);
+  const todayMs=pmvDMs(new Date());
+  const holds=hi.holdIntervals.filter(iv=>iv.start).map(iv=>[pmvDMs(iv.start),iv.end?pmvDMs(iv.end):todayMs]);
+  const cancelMs=hi.cancelled?(hi.cancelDate?pmvDMs(hi.cancelDate):0):null;
+  let closeMs=null;
+  if(m.installStatus==='done'&&m.endDate)closeMs=pmvDMs(m.endDate);
+  else if(m.status==='done'&&m.lastAttDate)closeMs=pmvDMs(m.lastAttDate);
+  let tracked=false,last=null;
+  for(const ms of rvDays){
+    if(ms<vMs)continue;
+    if(cancelMs!==null&&ms>=cancelMs)continue;
+    if(holds.some(iv=>ms>=iv[0]&&ms<=iv[1]))continue;
+    if(closeMs!==null&&ms>closeMs)continue;
+    tracked=true;
+    const r=rev[ms+'|'+pid];if(r)last=r;
+  }
+  if(!tracked)return '';
+  return last||'pend';
+}
 
 function buildHRC(){
   const monthVal=(document.getElementById('hrc-f-month')||{}).value||'';
@@ -4855,7 +4951,16 @@ function buildHRC(){
     if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed'];
+  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','rvissue'];
+  const _todayMs=pmvDMs(new Date());
+  const rvDays=[];
+  if(yy!==null){
+    for(let d=dayStart;d<=dayEnd;d++){const dt=new Date(yy,mm-1,d);if(dt.getTime()>_todayMs||dt.getDay()===0)continue;rvDays.push(dt.getTime());}
+  }else{
+    const dt=new Date(_todayMs);if(dt.getDay()===0)dt.setDate(dt.getDate()-1);rvDays.push(dt.getTime());
+  }
+  const rvIdx=hrcReviewIndex(),rvCache={};
+
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
   const projC=x=>{
@@ -4880,9 +4985,12 @@ function buildHRC(){
         else if(a.st==='without visit update')c.without=1;
       }else c.notupd=1;
     }
+    if(!(pid in rvCache))rvCache[pid]=hrcReviewStatusOf(x,rvIdx,rvDays);
+    const rv=rvCache[pid];
+    if(rv){c.rvtotal=1;c['rv'+rv]=1;}
     return c;
   };
-  window._hrcProjC=projC;   // used by the click-through list
+  window._hrcProjC=projC;
 
   const tree={};
   D.lead.r.forEach(x=>{
@@ -4927,6 +5035,7 @@ function buildHRC(){
   const GRN='background:linear-gradient(rgba(52,201,138,.16),rgba(52,201,138,.16)),var(--surface2);';
   const RED='background:linear-gradient(rgba(231,76,60,.16),rgba(231,76,60,.16)),var(--surface2);';
   const PNK='background:linear-gradient(rgba(224,81,138,.18),rgba(224,81,138,.18)),var(--surface2);';
+  const BLU='background:linear-gradient(rgba(79,142,247,.16),rgba(79,142,247,.16)),var(--surface2);';
   head.innerHTML=
    `<tr>
       <th rowspan="2" style="width:34px;text-align:center;">#</th>
@@ -4941,6 +5050,7 @@ function buildHRC(){
       <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
       <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
       <th rowspan="2" style="text-align:right;color:#e0518a;${PNK}border-left:2px solid #e0518a;" title="Not completed and past PO timeline">Delayed Projects</th>
+      <th colspan="3" style="text-align:center;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;border-right:2px solid #4f8ef7;" title="Projects expected to be reviewed by the PM in the selected period">To Be Reviewed</th>
     </tr>
     <tr>
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-left:2px solid #f5a623;">Total</th>
@@ -4950,20 +5060,22 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">No Activity</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Onsite Visit</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${BLU}border-left:2px solid #4f8ef7;">Reviewed</th>
+      <th style="text-align:right;top:33px;color:#f5a623;${BLU}">Pending</th>
+      <th style="text-align:right;top:33px;color:#e74c3c;${BLU}border-right:2px solid #4f8ef7;" title="I&amp;C not OK or material issue, not yet updated in the issue tracker">Issue Highlighted</th>
     </tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="17" class="empty">No leads match the selected filters</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="20" class="empty">No leads match the selected filters</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
 
-  // clickable cell: rid = row index (-1 = grand total), key = metric
   const cell=(n,color,base,extra,key,rid)=>{
     const clk=(n&&key)?` onclick="hrcShowList(${rid},'${key}')" title="Click to view projects"`:'';
     const cur=(n&&key)?'cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;':'';
     return `<td${clk} style="text-align:right;color:${n?color:'var(--muted)'};font-weight:500;${cur}${extra||''}">${n?`${n}${base?` <span style="color:var(--muted);font-weight:400;font-size:10px;">(${Math.round(n/base*100)}%)</span>`:''}`:'—'}</td>`;
   };
-  const tA='background:rgba(245,166,35,.07);',tG='background:rgba(52,201,138,.07);',tR='background:rgba(231,76,60,.07);',tP='background:rgba(224,81,138,.08);';
+  const tA='',tG='',tR='',tP='';
   const countCells=(c,rid)=>
     cell(c.total,'var(--text)',0,'font-weight:600;','total',rid)+
     cell(c.inst,'#34c98a',c.total,'','inst',rid)+
@@ -4979,7 +5091,10 @@ function buildHRC(){
     cell(c.onsite,'#34c98a',c.upd,tG,'onsite',rid)+
     cell(c.without,'#3bc0d8',c.upd,tG+'border-right:2px solid #34c98a;','without',rid)+
     cell(c.notupd,'#e74c3c',c.ongoing,tR,'notupd',rid)+
-    cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid);
+    cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid)+
+    cell(c.rvdone,'#34c98a',c.rvtotal,'border-left:2px solid #4f8ef7;font-weight:600;','rvdone',rid)+
+    cell(c.rvpend,'#f5a623',c.rvtotal,'','rvpend',rid)+
+    cell(c.rvissue,'#e74c3c',c.rvtotal,'border-right:2px solid #4f8ef7;','rvissue',rid);
 
   const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
     <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
@@ -5008,7 +5123,7 @@ function buildHRC(){
   total:'Total Projects',inst:'Installation Completed',done:'Project Completed',ch:'Cancelled & Hold',
   na:'Not Assigned',vnf:'Vendor Not Finalized',tpending:'Total Pending',ongoing:'On Going',
   handover:'Handover Pending',upd:'Activity Updated',noact:'No Activity',onsite:'Onsite Visit',
-  without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects'
+    without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects',rvdone:'Reviewed',rvpend:'Review Pending',rvissue:'Issue Highlighted'
 };
 
 function hrcShowList(rid,key){
