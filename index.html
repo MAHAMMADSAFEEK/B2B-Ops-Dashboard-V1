@@ -40,6 +40,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tabs .tab:nth-child(7){--tc:#e0518a;}
 .tabs .tab:nth-child(8){--tc:#7d5fff;}
 .tabs .tab:nth-child(9){--tc:#2ecc71;}
+.tabs .tab:nth-child(10){--tc:#3bc0d8;}
+.tabs .tab:nth-child(11){--tc:#e8743b;}
+.tabs .tab:nth-child(12){--tc:#7d5fff;}
+.tabs .tab:nth-child(13){--tc:#2ecc71;}
 .tab.active{opacity:1;box-shadow:0 4px 14px rgba(0,0,0,0.4);transform:translateY(-1px);}
 .tab-content{display:none;}
 .tab-content.active{display:block;}
@@ -294,6 +298,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     <button class="tab" onclick="switchTab('rpt',this)"><i class="ti ti-chart-pie"></i> Reports</button>
     <button class="tab" onclick="switchTab('hrc',this)"><i class="ti ti-binary-tree"></i> Hierarchy Report</button>
     <button class="tab" onclick="switchTab('pmv',this)"><i class="ti ti-user-search"></i> PM Review</button>
+    <button class="tab" onclick="switchTab('iss',this)"><i class="ti ti-bug"></i> Issue Tracker</button>
     <button class="tab" onclick="switchTab('pmr',this)"><i class="ti ti-calendar-month"></i> Project wise Monthly report</button>
     <button class="tab" onclick="switchTab('pemr',this)"><i class="ti ti-user-check"></i> PE Monthly Report</button>
     <button class="tab" onclick="switchTab('vmr',this)"><i class="ti ti-building-store"></i> Vendor Monthly Report</button>
@@ -618,7 +623,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     </div>
   </div>
 
-    <button class="tab" onclick="switchTab('iss',this)"><i class="ti ti-bug"></i> Issue Tracker</button>
+
 
     <!-- ISSUE TRACKER TAB -->
   <div id="tab-iss" class="tab-content">
@@ -895,16 +900,15 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 // ── Config ────────────────────────────────────────────────────
 const SID='1NuqbG_4a3bGS4Wd6dKvxsP0FN2tE6yMupkQ-1fYDQNA';
 const SHEETS={
-  lead:'0',          // Lead Tracker
+  lead:'0',
   pe:'819368336',
   att:'1499073248',
   tbt:'1641565259',
   dpr:'351032265',
   workplan:'204658067',
-  vendor:'2088990270', // Vendor data
-  daily:'1404385043',  // Daily Activity (leave tracker)
-  cred:'1939441300' ,   // Cred (login) sheet
-  pmr:'676633612'      // PM Review
+  vendor:'2088990270',
+  daily:'1404385043',
+  cred:'1939441300'     // Cred (login) sheet
 };
 
 const SID2='17GaCzIEOmyx7EtcwonVLnlkgROrtujyPqpv5APsbSek';
@@ -1131,7 +1135,7 @@ function enterDashboard(){
   _povCache={};
   buildProjFilters();
  populatePOVFilters(); populateRPTFilters(); populatePMRFilters();
-    populatePEMRFilters(); populateVMRFilters(); populateHRCFilters(); populateNURFilters(); populatePMVFilters();
+    populatePEMRFilters(); populateVMRFilters(); populateHRCFilters(); populateNURFilters(); populatePMVFilters(); populateISSFilters();
   buildAll();
   applyTabVisibility();
   // PE users land on their PE Monthly Report (calendar + summary)
