@@ -230,6 +230,17 @@ tr:hover td{background:var(--surface2);}
 .hrc-tg:hover{background:var(--surface2);}
 
 
+.hrc-table .hrc-f0{position:sticky;left:0;z-index:4;width:34px;min-width:34px;max-width:34px;}
+.hrc-table .hrc-f1{position:sticky;left:34px;z-index:4;min-width:300px;max-width:300px;border-right:2px solid #f5a623;}
+.hrc-table th.hrc-f0,.hrc-table th.hrc-f1{z-index:8;}
+.hrc-table td.hrc-f0,.hrc-table td.hrc-f1{background:var(--surface);}
+.hrc-table .hrc-row-0 td.hrc-f0,.hrc-table .hrc-row-0 td.hrc-f1{background:linear-gradient(rgba(79,142,247,.06),rgba(79,142,247,.06)),var(--surface);}
+.hrc-table .hrc-row-1 td.hrc-f0,.hrc-table .hrc-row-1 td.hrc-f1{background:linear-gradient(rgba(155,109,255,.05),rgba(155,109,255,.05)),var(--surface);}
+.hrc-table .hrc-row-2 td.hrc-f0,.hrc-table .hrc-row-2 td.hrc-f1{background:linear-gradient(rgba(245,166,35,.05),rgba(245,166,35,.05)),var(--surface);}
+.hrc-table tr.hrc-grand td.hrc-f0,.hrc-table tr.hrc-grand td.hrc-f1{background:var(--surface2);}
+.hrc-table tr:hover td.hrc-f0,.hrc-table tr:hover td.hrc-f1{background:var(--surface2);}
+
+
  @keyframes pmrBlueBlink{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,0.6);}50%{box-shadow:0 0 0 3px rgba(79,142,247,0.35);}}
 @keyframes pmrRowDelayBlink{0%,100%{background:rgba(231,76,60,0.05);}50%{background:rgba(231,76,60,0.18);}}
 tr.pmr-row-delay td.pmr-c0,tr.pmr-row-delay td.pmr-c1,tr.pmr-row-delay td.pmr-c2,tr.pmr-row-delay td.pmr-c3{animation:pmrRowDelayBlink 2.3s ease-in-out infinite;}
@@ -5048,8 +5059,8 @@ function buildHRC(){
   const PUR='background:linear-gradient(rgba(155,109,255,.18),rgba(155,109,255,.18)),var(--surface2);';
   head.innerHTML=
    `<tr>
-      <th rowspan="2" style="width:34px;text-align:center;">#</th>
-      <th rowspan="2">Cluster Head / City Manager / PE / Project</th>
+      <th rowspan="2" class="hrc-f0" style="text-align:center;">#</th>
+      <th rowspan="2" class="hrc-f1">Cluster Head / City Manager / PE / Project</th>
       <th rowspan="2" style="text-align:right;">Total Projects</th>
       <th rowspan="2" style="text-align:right;">Installation Completed</th>
       <th rowspan="2" style="text-align:right;">Project Completed</th>
@@ -5115,7 +5126,8 @@ function buildHRC(){
     cell(c.isdone,'#34c98a',c.istotal,'','isdone',rid)+
     cell(c.ispend,'#f5a623',c.istotal,'border-right:2px solid #9b6dff;','ispend',rid);
 
-  const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
+    const grandRow=`<tr class="hrc-grand" style="background:var(--surface2);border-bottom:2px solid var(--border2);">
+    <td class="hrc-f0"></td><td class="hrc-f1" style="font-weight:700;">
     <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
 
   let ci_=0;
@@ -5129,8 +5141,8 @@ function buildHRC(){
       ?`<span style="font-weight:${fw};">${pemrEsc(r.label)}</span><div style="font-size:10px;color:var(--muted);margin-top:2px;">${pemrEsc(r.sublabel)}</div>`
       :`<span style="font-weight:${fw};">${pemrEsc(r.label)}</span>`;
     return `<tr class="hrc-row-${r.level}">
-      <td style="color:var(--muted);text-align:center;font-weight:500;">${r.level===0?ci_:''}</td>
-      <td style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${levelIcons[r.level]}" style="color:${col};font-size:14px;"></i>${label}</span></td>
+            <td class="hrc-f0" style="color:var(--muted);text-align:center;font-weight:500;">${r.level===0?ci_:''}</td>
+      <td class="hrc-f1" style="padding-left:${12+indent}px;"><span style="display:inline-flex;align-items:center;gap:6px;">${toggle}<i class="ti ${levelIcons[r.level]}" style="color:${col};font-size:14px;"></i>${label}</span></td>
       ${countCells(r.counts,i)}
     </tr>`;
   }).join('');
