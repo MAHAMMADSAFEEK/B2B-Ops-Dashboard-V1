@@ -4889,7 +4889,7 @@ function hrcReviewIndex(){
     if(!ic)s='pend';
     else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')s='done';
     else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
-    else s='issue';
+    else s='pend';
     const k=pmvDMs(d)+'|'+pid;
     if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
   });
@@ -4951,7 +4951,7 @@ function buildHRC(){
     if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','rvissue'];
+  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','istoday','istotal','isdone','ispend'];
   const _todayMs=pmvDMs(new Date());
   const rvDays=[];
   if(yy!==null){
@@ -4959,7 +4959,14 @@ function buildHRC(){
   }else{
     const dt=new Date(_todayMs);if(dt.getDay()===0)dt.setDate(dt.getDate()-1);rvDays.push(dt.getTime());
   }
-  const rvIdx=hrcReviewIndex(),rvCache={};
+    const rvIdx=hrcReviewIndex(),rvCache={};
+  const issCnt={};
+  issBuildRows().forEach(r=>{
+    const o=issCnt[r.pid]=issCnt[r.pid]||{today:0,total:0,done:0,pend:0};
+    o.total++;
+    if(r.status==='Completed')o.done++;else o.pend++;
+    if(r.date&&pmvDMs(r.date)===_todayMs)o.today++;
+  });
 
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
@@ -4987,7 +4994,9 @@ function buildHRC(){
     }
     if(!(pid in rvCache))rvCache[pid]=hrcReviewStatusOf(x,rvIdx,rvDays);
     const rv=rvCache[pid];
-    if(rv){c.rvtotal=1;c['rv'+rv]=1;}
+        if(rv){c.rvtotal=1;c['rv'+rv]=1;}
+    const ic=issCnt[pid];
+    if(ic){c.istoday=ic.today;c.istotal=ic.total;c.isdone=ic.done;c.ispend=ic.pend;}
     return c;
   };
   window._hrcProjC=projC;
@@ -5036,6 +5045,7 @@ function buildHRC(){
   const RED='background:linear-gradient(rgba(231,76,60,.16),rgba(231,76,60,.16)),var(--surface2);';
   const PNK='background:linear-gradient(rgba(224,81,138,.18),rgba(224,81,138,.18)),var(--surface2);';
   const BLU='background:linear-gradient(rgba(79,142,247,.16),rgba(79,142,247,.16)),var(--surface2);';
+  const PUR='background:linear-gradient(rgba(155,109,255,.18),rgba(155,109,255,.18)),var(--surface2);';
   head.innerHTML=
    `<tr>
       <th rowspan="2" style="width:34px;text-align:center;">#</th>
@@ -5047,6 +5057,7 @@ function buildHRC(){
       <th rowspan="2" style="text-align:right;">Not Assigned</th>
       <th rowspan="2" style="text-align:right;" title="PE assigned but vendor not finalized">Vendor Not Finalized</th>
       <th colspan="3" style="text-align:center;color:#f5a623;${AMB}border-left:2px solid #f5a623;border-right:2px solid #f5a623;">Total Pending</th>
+      <th colspan="4" style="text-align:center;color:#9b6dff;${PUR}border-left:2px solid #9b6dff;border-right:2px solid #9b6dff;" title="Issues from the CT Daily Review Tracker">Issues</th>
       <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
       <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
       <th rowspan="2" style="text-align:right;color:#e0518a;${PNK}border-left:2px solid #e0518a;" title="Not completed and past PO timeline">Delayed Projects</th>
@@ -5063,7 +5074,10 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;">To Be Reviewed</th>
 <th style="text-align:right;top:33px;color:#34c98a;${BLU}">Reviewed</th>
       <th style="text-align:right;top:33px;color:#f5a623;${BLU}">Pending</th>
-      <th style="text-align:right;top:33px;color:#e74c3c;${BLU}border-right:2px solid #4f8ef7;" title="I&amp;C not OK or material issue, not yet updated in the issue tracker">Issue Highlighted</th>
+            <th style="text-align:right;top:33px;color:#9b6dff;${PUR}border-left:2px solid #9b6dff;">Today's Issues</th>
+      <th style="text-align:right;top:33px;color:#9b6dff;${PUR}">Total Issues</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${PUR}">Resolved</th>
+      <th style="text-align:right;top:33px;color:#f5a623;${PUR}border-right:2px solid #9b6dff;">Pending</th>
     </tr>`;
 
   if(!rows.length){body.innerHTML='<tr><td colspan="20" class="empty">No leads match the selected filters</td></tr>';return;}
@@ -5095,8 +5109,11 @@ function buildHRC(){
     cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid)+
     cell(c.rvtotal,'#4f8ef7',0,'border-left:2px solid #4f8ef7;font-weight:700;','rvtotal',rid)+
     cell(c.rvdone,'#34c98a',c.rvtotal,'font-weight:600;','rvdone',rid)+
-    cell(c.rvpend,'#f5a623',c.rvtotal,'','rvpend',rid)+
-    cell(c.rvissue,'#e74c3c',c.rvtotal,'border-right:2px solid #4f8ef7;','rvissue',rid);
+    cell(c.rvpend,'#f5a623',c.rvtotal,'border-right:2px solid #4f8ef7;','rvpend',rid)+
+    cell(c.istoday,'#9b6dff',0,'border-left:2px solid #9b6dff;font-weight:600;','istoday',rid)+
+    cell(c.istotal,'#9b6dff',0,'font-weight:600;','istotal',rid)+
+    cell(c.isdone,'#34c98a',c.istotal,'','isdone',rid)+
+    cell(c.ispend,'#f5a623',c.istotal,'border-right:2px solid #9b6dff;','ispend',rid);
 
   const grandRow=`<tr style="background:var(--surface2);border-bottom:2px solid var(--border2);">
     <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
@@ -5132,7 +5149,7 @@ function hrcShowList(rid,key){
   const src=rid<0?{label:'Grand Total',items:window._hrcGrandItems||[]}:(window._hrcRowList||[])[rid];
   const pc=window._hrcProjC;
    if(!src||!pc)return;
-    const showIss=key.indexOf('rv')===0;
+    const showIss=/^(rv|is)/.test(key);
   window._hrcLast=[rid,key];
   const issBy={};
   if(showIss)issBuildRows().forEach(r=>{(issBy[r.pid]=issBy[r.pid]||[]).push(r);});
@@ -5142,7 +5159,7 @@ function hrcShowList(rid,key){
     return l.slice().sort((a,b)=>(b.days||0)-(a.days||0)).slice(0,4).map(r=>{
       const c=ISS_COL[r.status]||'#8b92b0';
       const age=r.days===null?'Closed':r.days+'d';
-      return `<div style="margin-bottom:5px;"><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span> <span style="font-size:10px;color:var(--muted);">${r.date?fmtDate(r.date):'—'} · ${age}</span>${r.desc?`<div style="font-size:11px;color:var(--text);max-width:280px;">${pemrEsc(r.desc.length>90?r.desc.slice(0,90)+'…':r.desc)}</div>`:''}</div>`;
+      return `<div style="margin-bottom:5px;"><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span><div style="font-size:10px;color:var(--muted);white-space:nowrap;margin-top:2px;">${r.date?fmtDate(r.date):'—'} · ${age}</div>${r.desc?`<div style="font-size:11px;color:var(--text);max-width:280px;">${pemrEsc(r.desc.length>90?r.desc.slice(0,90)+'…':r.desc)}</div>`:''}</div>`;
     }).join('')+(l.length>4?`<div style="font-size:10px;color:var(--muted);">+${l.length-4} more</div>`:'');
   };
   
