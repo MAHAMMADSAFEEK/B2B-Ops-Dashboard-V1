@@ -649,7 +649,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     <div style="padding:16px 24px 24px;">
       <div class="section-title">Issue Tracker <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">CT Daily Review Tracker · click any card / number for the project list</span></div>
       <div id="iss-note"></div>
-      <div class="metrics" id="iss-metrics"></div>
+      <div class="metrics" id="iss-metrics" style="grid-template-columns:repeat(4,minmax(110px,1fr)) minmax(250px,1.6fr);align-items:stretch;"></div>
 
       <div class="charts-grid" style="grid-template-columns:1fr 1fr 1.5fr;align-items:start;">
         <div class="card"><div class="card-title"><i class="ti ti-list-details"></i> Status-wise <span style="font-size:11px;font-weight:400;">· click for City / Size split</span></div><div id="iss-status"></div></div>
@@ -7196,6 +7196,8 @@ function issBuildRows(){
   const iL=issCol(h,['leadid']),iD=issCol(h,['date']),iP=issCol(h,['projectid']),iN=issCol(h,['projectname']);
   const iC=issCol(h,['centralclosurestatus']),iH=issCol(h,['chescalationstatus']),iM=issCol(h,['pmescalationstatus']),iE=issCol(h,['escalationstatuspe']);
   const iDesc=h.findIndex(z=>{const n=issNorm(z);return (n.includes('issue')||n.includes('remark')||n.includes('comment'))&&!n.includes('status');});
+  const iSev=(()=>{const i=h.findIndex(z=>issNorm(z).includes('severity'));return i>=0?i:13;})();
+  const normSev=s=>{const l=String(s||'').trim().toLowerCase();return l.startsWith('h')?'High':l.startsWith('m')?'Medium':l.startsWith('l')?'Low':'';};
   const miss=[['Lead ID',iL],['Date',iD],['Central closure status',iC],['CH Escalation Status',iH],['PM Escalation Status',iM],['Escalation Status (PE)',iE]].filter(z=>z[1]<0).map(z=>z[0]);
   const note=document.getElementById('iss-note');
   if(note)note.innerHTML=(!h.length||miss.length)?`<div style="padding:10px 12px;margin-bottom:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;font-size:12px;">Columns not found in the issue sheet: <b>${miss.join(', ')}</b>. Check the header names.</div>`:'';
@@ -7264,6 +7266,27 @@ function clearISSFilters(){Object.keys(_issMS).forEach(k=>{_issMS[k].clear();iss
 // register a list of rows and return its id (used by onclick)
 function issReg(rows){_issReg.push(rows);return _issReg.length-1;}
 
+
+  const ISS_SEV=['High','Medium','Low'];
+const ISS_SEV_COL={High:'#e74c3c',Medium:'#f5a623',Low:'#34c98a','Not set':'#8b92b0'};
+function issSevCard(rows){
+  const groups={};['High','Medium','Low','Not set'].forEach(k=>groups[k]=[]);
+  rows.forEach(r=>groups[r.sev||'Not set'].push(r));
+  const total=rows.length;
+  const cx=45,cy=45,r=40;let ang=-Math.PI/2;const slices=[];
+  Object.entries(groups).forEach(([k,l])=>{
+    if(!l.length)return;
+    const frac=l.length/total,c=ISS_SEV_COL[k];
+    if(frac>0.999){slices.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}"/>`);return;}
+    const a2=ang+frac*Math.PI*2;
+    slices.push(`<path d="M ${cx} ${cy} L ${(cx+r*Math.cos(ang)).toFixed(2)} ${(cy+r*Math.sin(ang)).toFixed(2)} A ${r} ${r} 0 ${frac>0.5?1:0} 1 ${(cx+r*Math.cos(a2)).toFixed(2)} ${(cy+r*Math.sin(a2)).toFixed(2)} Z" fill="${c}" stroke="var(--surface)" stroke-width="1.5" style="cursor:pointer;" onclick="issShowProjects('Severity: ${k}',${issReg(l)})"/>`);
+    ang=a2;
+  });
+  const legend=Object.entries(groups).filter(([k,l])=>l.length||k!=='Not set').map(([k,l])=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;${l.length?'cursor:pointer;':''}"${l.length?` onclick="issShowProjects('Severity: ${k}',${issReg(l)})"`:''}><i class="ti ti-flag-filled" style="color:${ISS_SEV_COL[k]};font-size:12px;"></i><span style="flex:1;">${k}</span><b style="color:${ISS_SEV_COL[k]};">${l.length}</b><span style="color:var(--muted);min-width:30px;text-align:right;">${total?Math.round(l.length/total*100):0}%</span></div>`).join('');
+  return `<div class="metric" style="--mc:#e74c3c;padding:12px 14px;"><div class="mlbl" style="margin-bottom:6px;"><i class="ti ti-flag"></i> Severity</div><div style="display:flex;align-items:center;gap:12px;">${total?`<svg viewBox="0 0 90 90" style="width:78px;height:78px;flex-shrink:0;">${slices.join('')}</svg>`:'<div class="empty" style="padding:8px;">No data</div>'}<div style="flex:1;min-width:0;">${legend}</div></div></div>`;
+}
+  
+
 function buildISS(){
   _issReg=[];
   const all=issBuildRows();
@@ -7278,9 +7301,9 @@ function buildISS(){
   const total=rows.length;
   const inproc=rows.filter(r=>ISS_INPROC.includes(r.status)),done=rows.filter(r=>r.status==='Completed'),pend=rows.filter(r=>r.status==='Pending');
   const pct=n=>total?Math.round(n/total*100):0;
-  const card=(icon,lbl,list,color)=>`<div class="metric" style="--mc:${color};cursor:pointer;" onclick="issShowProjects('${lbl}',${issReg(list)})"><div class="micon"><i class="ti ${icon}"></i></div><div class="mlbl">${lbl}</div><div class="mval">${list.length}</div><div class="msub">${pct(list.length)}% · ${new Set(list.map(r=>r.pid)).size} project(s) · click for list</div></div>`;
+    const card=(icon,lbl,list,color)=>`<div class="metric" style="--mc:${color};cursor:pointer;padding:12px 14px;" onclick="issShowProjects('${lbl}',${issReg(list)})"><div class="micon" style="font-size:15px;margin-bottom:4px;"><i class="ti ${icon}"></i></div><div class="mlbl">${lbl}</div><div class="mval" style="font-size:22px;">${list.length}</div><div class="msub">${pct(list.length)}% · ${new Set(list.map(r=>r.pid)).size} project(s)</div></div>`;
   document.getElementById('iss-metrics').innerHTML=
-    card('ti-bug','Total Issues',rows,'#4f8ef7')+card('ti-loader','In Process',inproc,'#9b6dff')+card('ti-circle-check','Completed',done,'#34c98a')+card('ti-clock','Pending',pend,'#f5a623');
+    card('ti-bug','Total Issues',rows,'#4f8ef7')+card('ti-loader','In Process',inproc,'#9b6dff')+card('ti-circle-check','Completed',done,'#34c98a')+card('ti-clock','Pending',pend,'#f5a623')+issSevCard(rows);
 
   // status table
   const sBody=ISS_STATUSES.map(s=>{
@@ -7309,7 +7332,7 @@ function buildISS(){
 
   // detail table
   document.getElementById('iss-head').innerHTML='<tr><th>#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PM</th><th>PE</th><th>Size</th><th>Status</th><th>Raised On</th><th>Aging</th><th>Issue</th></tr>';
-  document.getElementById('iss-body').innerHTML=issRowsHtml(rows,true)||'<tr><td colspan="11" class="empty">No issues match the filters</td></tr>';
+  document.getElementById('iss-body').innerHTML=issRowsHtml(rows,true)||'<tr><td colspan="12" class="empty">No issues match the filters</td></tr>';
 }
 
 function issRowsHtml(list,full){
@@ -7325,6 +7348,7 @@ function issRowsHtml(list,full){
       <td style="font-size:12px;">${r.pe?pemrEsc(r.pe):'<span style="color:#e74c3c;">Not Assigned</span>'}</td>
       <td style="font-size:12px;">${pemrEsc(r.size)}</td>
       <td><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span></td>
+      <td>${r.sev?`<span class="badge" style="background:${ISS_SEV_COL[r.sev]}22;color:${ISS_SEV_COL[r.sev]};border:1px solid ${ISS_SEV_COL[r.sev]}55;white-space:nowrap;"><i class="ti ti-flag-filled" style="font-size:11px;margin-right:3px;"></i>${r.sev}</span>`:'<span style="color:var(--muted);">—</span>'}</td>
       <td style="font-size:11px;white-space:nowrap;">${r.date?fmtDate(r.date):'—'}</td>
       <td>${aging}</td>
       <td style="font-size:11px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;" title="${pemrEsc(r.desc)}">${pemrEsc(r.desc)||'—'}</td></tr>`;
