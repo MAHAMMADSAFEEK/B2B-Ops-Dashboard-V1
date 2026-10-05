@@ -7197,7 +7197,7 @@ function issBuildRows(){
   const iC=issCol(h,['centralclosurestatus']),iH=issCol(h,['chescalationstatus']),iM=issCol(h,['pmescalationstatus']),iE=issCol(h,['escalationstatuspe']);
   const iDesc=h.findIndex(z=>{const n=issNorm(z);return (n.includes('issue')||n.includes('remark')||n.includes('comment'))&&!n.includes('status');});
   const iSev=(()=>{const i=h.findIndex(z=>issNorm(z).includes('severity'));return i>=0?i:13;})();
-  const normSev=s=>{const l=String(s||'').trim().toLowerCase();return l.startsWith('h')?'High':l.startsWith('m')?'Medium':l.startsWith('l')?'Low':'';};
+  const normSev=s=>{const l=String(s||'').trim().toLowerCase();return l==='high'?'High':l==='medium'?'Medium':l==='low'?'Low':'';};
   const miss=[['Lead ID',iL],['Date',iD],['Central closure status',iC],['CH Escalation Status',iH],['PM Escalation Status',iM],['Escalation Status (PE)',iE]].filter(z=>z[1]<0).map(z=>z[0]);
   const note=document.getElementById('iss-note');
   if(note)note.innerHTML=(!h.length||miss.length)?`<div style="padding:10px 12px;margin-bottom:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;font-size:12px;">Columns not found in the issue sheet: <b>${miss.join(', ')}</b>. Check the header names.</div>`:'';
