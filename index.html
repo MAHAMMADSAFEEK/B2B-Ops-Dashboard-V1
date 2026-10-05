@@ -4887,25 +4887,6 @@ function hrcReviewStatusOf(x,rev,rvDays){
 }
 
 
-function hrcReviewIndex(){
-  const h=D.pmr.h,rev={};
-  const fx=(names,def)=>{for(const n of names){const i=h.findIndex(z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,'')===n);if(i>=0)return i;}return def;};
-  const iD=fx(['date'],0),iLead=fx(['leadid'],1),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
-  const issSet=issueKeySet();
-  const rank={done:3,issue:2,pend:1};
-  D.pmr.r.forEach(x=>{
-    const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
-    const ic=v(x,iIC),mat=v(x,iMat),lead=v(x,iLead);
-    let s;
-    if(!ic)s='pend';
-    else if(ic.toLowerCase()==='ok'&&mat.toLowerCase()==='no')s='done';
-    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
-    else s='pend';
-    const k=pmvDMs(d)+'|'+pid;
-    if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
-  });
-  return rev;
-}
 
 function hrcReviewStatusOf(x,rev,rvDays){
   const pid=lv(x,LEAD_COL.PID);
@@ -6995,10 +6976,7 @@ function buildPMV(){
     const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
     const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS),lead=v(x,iLead);
     let rs;
-    if(!ic)rs='Review Pending';
-    else if(/^(ok|yes)$/i.test(ic)&&/^no$/i.test(mat))rs='Review Completed';
-    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))rs='Review Completed';
-    else rs='Issue to be Update';
+    const rs=(/^yes$/i.test(ic)&&/^no$/i.test(mat))?'Review Completed':'Review Pending';
     const done=rs==='Review Completed';
     const k=pmvDMs(d)+'|'+pid;
     if(!rev[k]||(done&&!rev[k].done))rev[k]={ic,mat,ts,rs,done,filled:done};
