@@ -4854,7 +4854,7 @@ function hrcReviewIndex(){
     if(!ic)s='pend';
     else if(/^(ok|yes)$/i.test(ic)&&/^no$/i.test(mat))s='done';
     else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
-    else s='issue';
+    else s='pend';
     const k=pmvDMs(d)+'|'+pid;
     if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
   });
@@ -5127,8 +5127,7 @@ function buildHRC(){
     cell(c.ispend,'#f5a623',c.istotal,'border-right:2px solid #9b6dff;','ispend',rid);
 
     const grandRow=`<tr class="hrc-grand" style="background:var(--surface2);border-bottom:2px solid var(--border2);"><td class="hrc-f0"></td><td class="hrc-f1" style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
-    <td class="hrc-f0"></td><td class="hrc-f1" style="font-weight:700;">
-    <td></td><td style="font-weight:700;"><i class="ti ti-sum" style="color:var(--accent);margin-right:6px;"></i>Grand Total (all leads in view)</td>${countCells(grand,-1)}</tr>`;
+    
 
   let ci_=0;
   body.innerHTML=grandRow+rows.map((r,i)=>{
@@ -5154,7 +5153,7 @@ function buildHRC(){
   total:'Total Projects',inst:'Installation Completed',done:'Project Completed',ch:'Cancelled & Hold',
   na:'Not Assigned',vnf:'Vendor Not Finalized',tpending:'Total Pending',ongoing:'On Going',
   handover:'Handover Pending',upd:'Activity Updated',noact:'No Activity',onsite:'Onsite Visit',
-    without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects',rvdone:'Reviewed',rvpend:'Review Pending',rvissue:'Issue Highlighted'
+      without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects',rvtotal:'To Be Reviewed',rvdone:'Reviewed',rvpend:'Review Pending',istoday:"Today's Issues",istotal:'Total Issues',isdone:'Resolved Issues',ispend:'Pending Issues'
 };
 
 function hrcShowList(rid,key){
