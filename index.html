@@ -7414,9 +7414,9 @@ function renderISSDetail(){
         const val=String(r.raw[k]==null?'':r.raw[k]).trim();
         if(!val)return '';
         const isUrl=/^https?:\/\//i.test(val);
-        return `<div style="background:var(--bg2);border-radius:6px;padding:6px 8px;flex:0 0 auto;min-width:130px;max-width:260px;"><div style="font-size:10px;color:var(--muted);">${pemrEsc(hd)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word;">${isUrl?`<a href="${pemrEsc(val)}" target="_blank" rel="noopener" style="color:#4f8ef7;">${pemrEsc(val.length>50?val.slice(0,50)+'…':val)}</a>`:pemrEsc(val)}</div></div>`;
+        return `<div style="flex:0 0 auto;min-width:120px;max-width:260px;padding:0 14px 0 0;margin-right:14px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--muted);">${pemrEsc(hd)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word;">${isUrl?`<a href="${pemrEsc(val)}" target="_blank" rel="noopener" style="color:#4f8ef7;">${pemrEsc(val.length>50?val.slice(0,50)+'…':val)}</a>`:pemrEsc(val)}</div></div>`;
       }).join('');
-      return `<div class="pemr-card" style="border-left:3px solid ${c};margin-bottom:8px;">
+      return `<div style="border-bottom:1px solid var(--border);padding:8px 0 10px;margin-bottom:4px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
           <b style="font-size:12px;">Issue ${n+1}</b>
           <span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span>
@@ -7425,7 +7425,7 @@ function renderISSDetail(){
           <span style="font-size:11px;color:var(--muted);">Completed <b style="color:var(--text);">${r.status==='Completed'?(r.endD?fmtDate(r.endD):'—'):'Open'}</b></span>
           <span style="font-size:11px;color:var(--muted);">Issue TAT <b style="color:#4f8ef7;">${tatTxt}</b></span>
         </div>
-        <div style="display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;">${fields}</div>
+         <div style="display:flex;flex-wrap:nowrap;overflow-x:auto;padding:2px 0 4px;">${fields}</div>
       </div>`;
     }).join('');
     const sub=`<tr><td></td><td colspan="11" style="padding:8px 0 14px 24px;border-left:3px solid #4f8ef7;">
@@ -7434,7 +7434,6 @@ function renderISSDetail(){
     return main+sub;
   }).join('');
 }
-
   
 
 function issRowsHtml(list,full){
