@@ -650,11 +650,14 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
       <div class="section-title">Issue Tracker <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">CT Daily Review Tracker · click any card / number for the project list</span></div>
       <div id="iss-note"></div>
       <div class="metrics" id="iss-metrics"></div>
-      <div class="charts-grid">
+
+      <div class="charts-grid" style="grid-template-columns:1fr 1fr 1.5fr;align-items:start;">
         <div class="card"><div class="card-title"><i class="ti ti-list-details"></i> Status-wise <span style="font-size:11px;font-weight:400;">· click for City / Size split</span></div><div id="iss-status"></div></div>
         <div class="card"><div class="card-title"><i class="ti ti-clock-exclamation"></i> Aging <span style="font-size:11px;font-weight:400;">· open issues only</span></div><div id="iss-aging"></div></div>
+        <div class="card"><div class="card-title"><i class="ti ti-user-cog"></i> PM-wise Issues</div><div class="table-wrap" id="iss-pm"></div></div>
       </div>
-      <div class="card"><div class="card-title"><i class="ti ti-user-cog"></i> PM-wise Issues</div><div class="table-wrap" id="iss-pm"></div></div>
+
+      
       <div class="card"><div class="card-title"><i class="ti ti-table"></i> Issue Detail</div>
         <div class="table-wrap" style="max-height:70vh;overflow:auto;"><table><thead id="iss-head"></thead><tbody id="iss-body"></tbody></table></div></div>
     </div>
