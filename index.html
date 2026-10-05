@@ -7198,6 +7198,7 @@ function issBuildRows(){
   const iL=issCol(h,['leadid']),iD=issCol(h,['date']),iP=issCol(h,['projectid']),iN=issCol(h,['projectname']);
   const iC=issCol(h,['centralclosurestatus']),iH=issCol(h,['chescalationstatus']),iM=issCol(h,['pmescalationstatus']),iE=issCol(h,['escalationstatuspe']);
   const iDesc=(()=>{let i=issCol(h,['issueblocker']);if(i>=0)return i;return h.findIndex(z=>{const n=issNorm(z);return (n.includes('blocker')||n.includes('remark')||n.includes('comment'))&&!n.includes('status');});})();
+  const iEnd=h.findIndex(z=>{const n=issNorm(z);return (n.includes('closure')||n.includes('closed')||n.includes('completion')||n.includes('resolved'))&&(n.includes('date')||n.includes('time'))&&!n.includes('status');});
   const iSev=(()=>{const i=h.findIndex(z=>issNorm(z).includes('severity'));return i>=0?i:13;})();
   const normSev=s=>{const l=String(s||'').trim().toLowerCase();return l==='high'?'High':l==='medium'?'Medium':l==='low'?'Low':'';};
   const miss=[['Lead ID',iL],['Date',iD],['Central closure status',iC],['CH Escalation Status',iH],['PM Escalation Status',iM],['Escalation Status (PE)',iE]].filter(z=>z[1]<0).map(z=>z[0]);
@@ -7225,6 +7226,16 @@ function issBuildRows(){
       days=Math.max(0,Math.floor((today-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000));
       const b=ISS_BUCKETS.find(z=>days>=z[1]&&days<=z[2]);bucket=b?b[0]:'';
     }
+
+        const endD=iEnd>=0?povParseHoldDate(v(x,iEnd)):null;
+    let tat=null;
+    if(d){
+      const s0=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+      if(status!=='Completed')tat=Math.max(0,Math.round((today-s0)/86400000));
+      else if(endD)tat=Math.max(0,Math.round((new Date(endD.getFullYear(),endD.getMonth(),endD.getDate())-s0)/86400000));
+    }
+
+    
     rows.push({lead,pid:pid||'—',name:(iN>=0&&v(x,iN))||(lr?lv(lr,LEAD_COL.PNAME):'')||pid||'—',
       city:lr?lv(lr,LEAD_COL.CITY)||'—':'—',pm:lr?lv(lr,LEAD_COL.CITYMGR)||'(No PM)':'—',pe:lr?lv(lr,LEAD_COL.PE):'',
       size:lr?sizeCategoryOf(lr):'—',status,date:d,days,bucket,desc:iDesc>=0?v(x,iDesc):'',raw:x});
@@ -7345,27 +7356,30 @@ function issCollapseAll(){_issExp.clear();renderISSDetail();}
 function renderISSDetail(){
   const head=document.getElementById('iss-head'),body=document.getElementById('iss-body');
   if(!head||!body)return;
-  const sevRank={High:3,Medium:2,Low:1};
   const m={};
   _issRows.forEach(r=>{(m[r.pid]=m[r.pid]||[]).push(r);});
   const projs=Object.entries(m).map(([pid,l])=>{
     const open=l.filter(r=>r.status!=='Completed');
-    const stc={};open.forEach(r=>stc[r.status]=(stc[r.status]||0)+1);
-    let sev='';open.forEach(r=>{if((sevRank[r.sev]||0)>(sevRank[sev]||0))sev=r.sev;});
-    return{pid,l,f:l[0],total:l.length,done:l.length-open.length,pend:open.length,stc,sev,
+    let pstat='Completed';
+    if(open.length)pstat=open.some(r=>ISS_INPROC.includes(r.status))?'In Process':'Pending';
+    const tatSum=l.reduce((s,r)=>s+(r.tat||0),0);
+    const tatKnown=l.filter(r=>r.tat!==null).length;
+    return{pid,l,f:l[0],total:l.length,done:l.length-open.length,pend:open.length,pstat,tatSum,tatKnown,
       oldest:open.length?Math.max(...open.map(r=>r.days||0)):null};
   }).sort((a,b)=>(b.pend>0)-(a.pend>0)||(b.oldest||0)-(a.oldest||0)||a.f.name.localeCompare(b.f.name));
   window._issProjList=projs;
 
-  head.innerHTML='<tr><th style="width:34px;">#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PM</th><th>PE</th><th>Size</th><th style="text-align:center;">Total Issues</th><th style="min-width:200px;">Resolution</th><th>Pending Status</th><th>Severity</th><th>Oldest Open</th></tr>';
+  head.innerHTML='<tr><th style="width:34px;">#</th><th>Project ID</th><th>Project Name</th><th>City</th><th>PM</th><th>PE</th><th>Size</th><th style="text-align:center;">Total Issues</th><th style="min-width:200px;">Resolution</th><th>Project Status</th><th>Issue TAT</th><th>Oldest Open</th></tr>';
   if(!projs.length){body.innerHTML='<tr><td colspan="12" class="empty">No issues match the filters</td></tr>';return;}
 
+  const PS_COL={'Completed':'#34c98a','In Process':'#9b6dff','Pending':'#f5a623'};
   const sevBadge=s=>s?`<span class="badge" style="background:${ISS_SEV_COL[s]}22;color:${ISS_SEV_COL[s]};border:1px solid ${ISS_SEV_COL[s]}55;white-space:nowrap;"><i class="ti ti-flag-filled" style="font-size:11px;margin-right:3px;"></i>${s}</span>`:'<span style="color:var(--muted);">—</span>';
   const ageBadge=d=>{
     if(d===null)return '<span style="color:var(--muted);">Closed</span>';
     const c=d>60?'#e74c3c':d>30?'#e8743b':d>7?'#f5a623':'#34c98a';
     return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;">${d}d</span>`;
   };
+  const tatTxt=t=>t===null?'<span style="color:var(--muted);">—</span>':`<b>${t}d</b>`;
 
   body.innerHTML=projs.map((p,i)=>{
     const f=p.f,exp=_issExp.has(p.pid);
@@ -7374,7 +7388,9 @@ function renderISSDetail(){
     const barCol=allDone?'#34c98a':p.done>0?'#f5a623':'#e74c3c';
     const resolution=`<div style="font-size:12px;font-weight:600;color:${barCol};margin-bottom:4px;">${p.done}/${p.total} completed${allDone?' ✓':` · ${p.pend} pending`}</div>
       <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${barCol};"></div></div><span style="font-size:11px;color:var(--muted);min-width:30px;text-align:right;">${pct}%</span></div>`;
-    const pendChips=allDone?'<span class="badge bg">All resolved</span>':Object.entries(p.stc).map(([s,n])=>`<span class="badge" style="background:${ISS_COL[s]}22;color:${ISS_COL[s]};border:1px solid ${ISS_COL[s]}55;margin:1px;white-space:nowrap;">${s} ×${n}</span>`).join('');
+    const pc=PS_COL[p.pstat];
+    const pbadge=`<span class="badge" style="background:${pc}22;color:${pc};border:1px solid ${pc}55;white-space:nowrap;">${p.pstat}</span>`;
+    const tatCell=p.tatKnown?`<div style="font-size:13px;font-weight:700;color:#4f8ef7;">${p.tatSum} days</div><div style="font-size:10px;color:var(--muted);">${p.tatKnown} issue(s) · avg ${Math.round(p.tatSum/p.tatKnown)}d</div>`:'<span style="color:var(--muted);">—</span>';
     const esc=p.pid.replace(/'/g,"\\'"),en=f.name.replace(/'/g,"\\'");
     const main=`<tr style="${exp?'background:rgba(79,142,247,0.06);':''}">
       <td style="color:var(--muted);">${i+1}</td>
@@ -7386,8 +7402,8 @@ function renderISSDetail(){
       <td style="font-size:12px;">${pemrEsc(f.size)}</td>
       <td style="text-align:center;"><span class="badge bb" style="font-size:13px;font-weight:700;">${p.total}</span></td>
       <td>${resolution}</td>
-      <td>${pendChips}</td>
-      <td>${sevBadge(p.sev)}</td>
+      <td>${pbadge}</td>
+      <td>${tatCell}</td>
       <td>${ageBadge(p.oldest)}</td></tr>`;
     if(!exp)return main;
     const subs=[...p.l].sort((a,b)=>((a.status==='Completed')-(b.status==='Completed'))||((b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)));
@@ -7395,14 +7411,15 @@ function renderISSDetail(){
       const c=ISS_COL[r.status];
       return `<tr><td style="color:var(--muted);">${n+1}</td>
         <td style="font-size:11px;white-space:nowrap;">${r.date?fmtDate(r.date):'—'}</td>
+        <td style="font-size:11px;white-space:nowrap;">${r.status==='Completed'?(r.endD?fmtDate(r.endD):'—'):'<span style="color:var(--muted);">Open</span>'}</td>
         <td><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span></td>
         <td>${sevBadge(r.sev)}</td>
-        <td>${ageBadge(r.days)}</td>
+        <td>${tatTxt(r.tat)}${r.status!=='Completed'&&r.tat!==null?' <span style="font-size:10px;color:var(--muted);">running</span>':''}</td>
         <td style="font-size:12px;max-width:420px;white-space:normal;">${pemrEsc(r.desc)||'—'}</td></tr>`;
     }).join('');
     const sub=`<tr><td></td><td colspan="11" style="padding:6px 0 14px 24px;border-left:3px solid #4f8ef7;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">All issues for ${pemrEsc(f.name)} (${p.total})</div>
-      <table style="font-size:12px;width:100%;"><thead><tr><th>#</th><th>Raised On</th><th>Status</th><th>Severity</th><th>Aging</th><th>Issue</th></tr></thead><tbody>${subRows}</tbody></table></td></tr>`;
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">All issues for ${pemrEsc(f.name)} (${p.total}) · total issue TAT ${p.tatKnown?p.tatSum+' days':'—'}</div>
+      <table style="font-size:12px;width:100%;"><thead><tr><th>#</th><th>Started</th><th>Completed</th><th>Status</th><th>Severity</th><th>Issue TAT</th><th>Issue</th></tr></thead><tbody>${subRows}</tbody></table></td></tr>`;
     return main+sub;
   }).join('');
 }
