@@ -4844,22 +4844,18 @@ function clearHRCFilters(){
 function hrcReviewIndex(){
   const h=D.pmr.h,rev={};
   const fx=(names,def)=>{for(const n of names){const i=h.findIndex(z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,'')===n);if(i>=0)return i;}return def;};
-  const iD=fx(['date'],0),iLead=fx(['leadid'],1),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
-  const issSet=issueKeySet();
-  const rank={done:3,issue:2,pend:1};
+  const iD=fx(['date'],0),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
+  const rank={done:2,pend:1};
   D.pmr.r.forEach(x=>{
     const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
-    const ic=v(x,iIC),mat=v(x,iMat),lead=v(x,iLead);
-    let s;
-    if(!ic)s='pend';
-    else if(/^(ok|yes)$/i.test(ic)&&/^no$/i.test(mat))s='done';
-    else if(lead&&issSet.has(lead+'|'+pmvDMs(d)))s='done';
-    else s='pend';
+    const s=(/^yes$/i.test(v(x,iIC))&&/^no$/i.test(v(x,iMat)))?'done':'pend';
     const k=pmvDMs(d)+'|'+pid;
     if(!rev[k]||rank[s]>rank[rev[k]])rev[k]=s;
   });
   return rev;
 }
+
+  
 // '' = not expected to be reviewed in this window
 function hrcReviewStatusOf(x,rev,rvDays){
   const pid=lv(x,LEAD_COL.PID);
