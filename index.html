@@ -4854,8 +4854,6 @@ function hrcReviewIndex(){
   });
   return rev;
 }
-
-  
 // '' = not expected to be reviewed in this window
 function hrcReviewStatusOf(x,rev,rvDays){
   const pid=lv(x,LEAD_COL.PID);
@@ -4881,7 +4879,6 @@ function hrcReviewStatusOf(x,rev,rvDays){
   if(!tracked)return '';
   return last||'pend';
 }
-
 
 
 function hrcReviewStatusOf(x,rev,rvDays){
@@ -5077,7 +5074,7 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#f5a623;${PUR}border-right:2px solid #9b6dff;">Pending</th>
     </tr>`;
 
-  if(!rows.length){body.innerHTML='<tr><td colspan="20" class="empty">No leads match the selected filters</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="24" class="empty">No leads match the selected filters</td></tr>';return;}
 
   const levelIcons=['ti-users-group','ti-user-cog','ti-user','ti-building-skyscraper'];
   const levelColors=['#4f8ef7','#9b6dff','#f5a623','#34c98a'];
@@ -6970,8 +6967,7 @@ function buildPMV(){
   const rev={};
   D.pmr.r.forEach(x=>{
     const d=povParseHoldDate(v(x,iD)),pid=v(x,iP);if(!d||!pid)return;
-    const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS),lead=v(x,iLead);
-    let rs;
+    const ic=v(x,iIC),mat=v(x,iMat),ts=v(x,iTS);
     const rs=(/^yes$/i.test(ic)&&/^no$/i.test(mat))?'Review Completed':'Review Pending';
     const done=rs==='Review Completed';
     const k=pmvDMs(d)+'|'+pid;
