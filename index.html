@@ -5051,6 +5051,15 @@ function buildHRC(){
   window._hrcRowList=rows;
   window._hrcGrandItems=grandItems;
 
+    let pLbl='All Time';
+  if(yy!==null){
+    if(dateVal){
+      const _dt=new Date(yy,mm-1,Number(dateVal));
+      pLbl=(pmvDMs(_dt)===pmvDMs(new Date()))?'Today':_dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+    }else if(weekVal){pLbl='Week '+weekVal;}
+    else{pLbl=new Date(yy,mm-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});}
+  }
+
   const AMB='background:linear-gradient(rgba(245,166,35,.16),rgba(245,166,35,.16)),var(--surface2);';
   const GRN='background:linear-gradient(rgba(52,201,138,.16),rgba(52,201,138,.16)),var(--surface2);';
   const RED='background:linear-gradient(rgba(231,76,60,.16),rgba(231,76,60,.16)),var(--surface2);';
@@ -5068,8 +5077,8 @@ function buildHRC(){
       <th rowspan="2" style="text-align:right;">Not Assigned</th>
       <th rowspan="2" style="text-align:right;" title="PE assigned but vendor not finalized">Vendor Not Finalized</th>
       <th colspan="3" style="text-align:center;color:#f5a623;${AMB}border-left:2px solid #f5a623;border-right:2px solid #f5a623;">Total Pending</th>
-      <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Updated (from On Going)</th>
-      <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated</th>
+      <th colspan="4" style="text-align:center;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Activity Status · ${pLbl} (On Going Projects)</th>
+      <th rowspan="2" style="text-align:right;color:#e74c3c;${RED}">Not Updated ${pLbl}</th>
       <th rowspan="2" style="text-align:right;color:#e0518a;${PNK}border-left:2px solid #e0518a;" title="Not completed and past PO timeline">Delayed Projects</th>
       <th colspan="3" style="text-align:center;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;border-right:2px solid #4f8ef7;" title="Projects expected to be reviewed by the PM in the selected period">To Be Reviewed</th>
       <th colspan="4" style="text-align:center;color:#9b6dff;${PUR}border-left:2px solid #9b6dff;border-right:2px solid #9b6dff;" title="Issues from the CT Daily Review Tracker">Issues</th>
@@ -5078,7 +5087,7 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-left:2px solid #f5a623;">Total</th>
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}" title="PE assigned, vendor finalized, installation not done">On Going</th>
       <th style="text-align:right;top:33px;color:#f5a623;${AMB}border-right:2px solid #f5a623;" title="Installation done, O&amp;M / handover pending">Handover Pending</th>
-      <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Updated</th>
+      <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Updated ${pLbl}</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">No Activity</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}">Onsite Visit</th>
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
