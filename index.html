@@ -7408,11 +7408,13 @@ function renderISSDetail(){
     const cards=subs.map((r,n)=>{
       const c=ISS_COL[r.status];
       const tatTxt=r.tat==null?'—':r.tat+' days'+(r.status!=='Completed'?' (running)':'');
+      const HIDE=['issueraisedby','leadid','sseid','sitename','dadate','projectstartdate','pe','pm','ch','uniqueid','projectid','projectname'];
       const fields=hdrs.map((hd,k)=>{
+        if(HIDE.includes(issNorm(hd)))return '';
         const val=String(r.raw[k]==null?'':r.raw[k]).trim();
         if(!val)return '';
         const isUrl=/^https?:\/\//i.test(val);
-        return `<div style="background:var(--bg2);border-radius:6px;padding:6px 8px;"><div style="font-size:10px;color:var(--muted);">${pemrEsc(hd)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word;">${isUrl?`<a href="${pemrEsc(val)}" target="_blank" rel="noopener" style="color:#4f8ef7;">${pemrEsc(val.length>50?val.slice(0,50)+'…':val)}</a>`:pemrEsc(val)}</div></div>`;
+        return `<div style="background:var(--bg2);border-radius:6px;padding:6px 8px;flex:0 0 auto;min-width:130px;max-width:260px;"><div style="font-size:10px;color:var(--muted);">${pemrEsc(hd)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word;">${isUrl?`<a href="${pemrEsc(val)}" target="_blank" rel="noopener" style="color:#4f8ef7;">${pemrEsc(val.length>50?val.slice(0,50)+'…':val)}</a>`:pemrEsc(val)}</div></div>`;
       }).join('');
       return `<div class="pemr-card" style="border-left:3px solid ${c};margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
@@ -7423,7 +7425,7 @@ function renderISSDetail(){
           <span style="font-size:11px;color:var(--muted);">Completed <b style="color:var(--text);">${r.status==='Completed'?(r.endD?fmtDate(r.endD):'—'):'Open'}</b></span>
           <span style="font-size:11px;color:var(--muted);">Issue TAT <b style="color:#4f8ef7;">${tatTxt}</b></span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;">${fields}</div>
+        <div style="display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;">${fields}</div>
       </div>`;
     }).join('');
     const sub=`<tr><td></td><td colspan="11" style="padding:8px 0 14px 24px;border-left:3px solid #4f8ef7;">
