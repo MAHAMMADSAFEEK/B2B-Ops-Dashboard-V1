@@ -83,7 +83,17 @@ tr:hover td{background:var(--surface2);}
 #overlay{position:fixed;inset:0;background:rgba(15,17,23,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;}
 #overlay.hidden{display:none;}
 .spin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
+
+.sync-wrap{position:relative;width:96px;height:96px;}
+.sync-wrap svg{position:absolute;inset:0;}
+.sync-o1{animation:spin 1.1s linear infinite;transform-origin:center;}
+.sync-o2{animation:spin 1.6s linear infinite reverse;transform-origin:center;}
+.sync-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--text);}
+@keyframes syncPulse{0%,100%{opacity:.45}50%{opacity:1}}
+#overlay-txt{animation:syncPulse 1.6s ease-in-out infinite;letter-spacing:.02em;}
+
+
+
 #overlay-txt{font-size:14px;color:var(--muted);}
 
 /* ── Login overlay ── */
@@ -269,10 +279,15 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 <body>
 
 <div id="overlay">
-  <div class="spin"></div>
-  <div id="overlay-txt">Connecting to Google Sheets…</div>
+  <div class="sync-wrap">
+    <svg class="sync-o1" width="96" height="96" viewBox="0 0 84 84"><circle cx="42" cy="42" r="38" fill="none" stroke="#4f8ef7" stroke-width="3" stroke-linecap="round" stroke-dasharray="60 180"/></svg>
+    <svg class="sync-o2" width="96" height="96" viewBox="0 0 84 84"><circle cx="42" cy="42" r="28" fill="none" stroke="#9b6dff" stroke-width="3" stroke-linecap="round" stroke-dasharray="40 136"/></svg>
+    <div class="sync-pct" id="sync-pct">0%</div>
+  </div>
+  <div id="overlay-txt">Syncing dashboard…</div>
 </div>
 
+  
 <div id="login-overlay" class="hidden">
   <div class="login-card">
     <div class="login-logo"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToL7ghMGlVSZZldEAR63B8XCpsOUoKx00ATeQzw6OJACIfjw61nHrhpOQ9&s=10" alt="logo" style="height:28px;width:auto;border-radius:6px;"/> Ops Dashboard</div>
@@ -961,6 +976,21 @@ function parseSheet(gid,sid){return new Promise((res,rej)=>{
     error:e=>{clearTimeout(timer);rej(e);}});
 });}
 function setOverlay(txt){document.getElementById('overlay-txt').textContent=txt;}
+
+  let _syncShown=0,_syncTarget=0,_syncTimer=null;
+function setProgress(done,total){
+  _syncTarget=total?Math.round(done/total*100):0;
+  if(_syncTimer)return;
+  _syncTimer=setInterval(()=>{
+    if(_syncShown<_syncTarget)_syncShown=Math.min(_syncTarget,_syncShown+2);
+    else if(_syncShown>_syncTarget)_syncShown=_syncTarget;
+    const el=document.getElementById('sync-pct');if(el)el.textContent=_syncShown+'%';
+    if(_syncShown===_syncTarget){clearInterval(_syncTimer);_syncTimer=null;}
+  },20);
+}
+function resetProgress(){_syncShown=0;_syncTarget=0;if(_syncTimer){clearInterval(_syncTimer);_syncTimer=null;}const el=document.getElementById('sync-pct');if(el)el.textContent='0%';}
+
+  
 function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');if(name==='map'){setTimeout(()=>{buildProjMap();if(_projMap)_projMap.invalidateSize();},50);}
 if(name==='nur'){buildNUR();}
 if(name==='cmp'){buildCMP();}}
@@ -1022,11 +1052,15 @@ async function loadAll(){
     // Load all sheets in parallel (incl. cred)
     const entries=[...Object.entries(SHEETS).map(([k,g])=>[k,g,SID]),...Object.entries(SHEETS2).map(([k,g])=>[k,g,SID2])];
     let loaded=0;
-    setOverlay(`Loading data… 0/${entries.length}`);
+    resetProgress();
+    setOverlay('Syncing dashboard…');
+    setProgress(0,entries.length);
+
+    
     await Promise.all(entries.map(async ([key,gid,sid])=>{
       try{const rows=await parseSheet(gid,sid);D[key].h=rows[0]||[];D[key].r=rows.slice(1);}
       catch(e){console.warn(`Failed: ${key}`,e);D[key].h=[];D[key].r=[];}
-      loaded++;setOverlay(`Loading data… ${loaded}/${entries.length}`);
+      loaded++;setProgress(loaded,entries.length);
     }));
     document.getElementById('status-badge').innerHTML='<i class="ti ti-circle-check" style="font-size:10px"></i> Live';
     document.getElementById('status-badge').style.cssText='font-size:11px;padding:4px 12px;border-radius:20px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.3);';
