@@ -4844,16 +4844,30 @@ function hrcDelayOf(x){
   return 'On Time';
 }
 // Mutually exclusive bucket for every lead
-function hrcBucket(x){
+function hrcBucket(x,asOf){
+  const today=pmvDMs(new Date());
   const h=povHoldInfo(x);
-  if(h.cancelled||h.onHold)return 'ch';
+  if(asOf==null||asOf>=today){
+    if(h.cancelled||h.onHold)return 'ch';
+    if(!lv(x,LEAD_COL.PE))return 'na';
+    if(!vendorFinalizeDate(x))return 'vnf';
+    const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
+    if(m.status==='done')return 'done';
+    if(m.installStatus==='done')return 'handover';
+    return 'ongoing';
+  }
+  if(h.cancelled&&(h.cancelDate?pmvDMs(h.cancelDate):0)<=asOf)return 'ch';
+  if(h.holdIntervals.some(iv=>iv.start&&pmvDMs(iv.start)<=asOf&&(!iv.end||pmvDMs(iv.end)>=asOf)))return 'ch';
   if(!lv(x,LEAD_COL.PE))return 'na';
-  if(!vendorFinalizeDate(x))return 'vnf';
+  const vd=vendorFinalizeDate(x);
+  if(!vd||pmvDMs(vd)>asOf)return 'vnf';
   const m=computeProjectMetrics(lv(x,LEAD_COL.PID));
-  if(m.status==='done')return 'done';
-  if(m.installStatus==='done')return 'handover';
+  if(m.status==='done'&&(!m.lastAttDate||pmvDMs(m.lastAttDate)<=asOf))return 'done';
+  if(m.installStatus==='done'&&(!m.endDate||pmvDMs(m.endDate)<=asOf))return 'handover';
   return 'ongoing';
 }
+
+  
 function hrcRowPasses(x){
   const f=_hrcMS;
   if(f.city.size&&!f.city.has(lv(x,LEAD_COL.CITY)))return false;
@@ -4982,6 +4996,13 @@ function buildHRC(){
 
   const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','istoday','istotal','isdone','ispend'];
   const _todayMs=pmvDMs(new Date());
+
+
+    let asOf=_todayMs;
+  if(yy!==null)asOf=Math.min(_todayMs,new Date(yy,mm-1,dayEnd).getTime());
+  const iCHA=ci(D.lead.h,'Clusterheadassignedon','clusterheadassigned');
+
+  
   const rvDays=[];
   if(yy!==null){
     for(let d=dayStart;d<=dayEnd;d++){const dt=new Date(yy,mm-1,d);if(dt.getTime()>_todayMs||dt.getDay()===0)continue;rvDays.push(dt.getTime());}
@@ -5000,12 +5021,21 @@ function buildHRC(){
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
   const projC=x=>{
-    const pid=lv(x,LEAD_COL.PID),c=zeroC(),b=hrcBucket(x);
+
+
+        const pid=lv(x,LEAD_COL.PID),c=zeroC(),b=hrcBucket(x,asOf);
     const m=computeProjectMetrics(pid);
     c.total=1;
-    if(m.installStatus==='done')c.inst=1;
-    const dl=povComputeDelay(x);
-    if(dl&&dl.delayBy>0&&!dl.isDone)c.delayed=1;
+    if(m.installStatus==='done'&&(asOf>=_todayMs||!m.endDate||pmvDMs(m.endDate)<=asOf))c.inst=1;
+    if(asOf>=_todayMs){
+      const dl=povComputeDelay(x);
+      if(dl&&dl.delayBy>0&&!dl.isDone)c.delayed=1;
+    }else{
+      const ps=parseDate(lv(x,37)),pd=parseFloat(lv(x,24))||0;
+      if(ps&&pd&&b!=='done'&&Math.floor((asOf-pmvDMs(ps))/86400000)+1>pd)c.delayed=1;
+    }
+
+    
     if(b==='done')c.done=1;
     else if(b==='ch')c.ch=1;
     else if(b==='na')c.na=1;
@@ -5033,6 +5063,7 @@ function buildHRC(){
   const tree={};
   D.lead.r.forEach(x=>{
     const pid=lv(x,LEAD_COL.PID);if(!pid||!hrcRowPasses(x))return;
+   if(asOf<_todayMs&&iCHA>=0){const cd=parseDate(lv(x,iCHA));if(cd&&pmvDMs(cd)>asOf)return;}
     const cl=lv(x,LEAD_COL.CLUSTER)||'(No Cluster Head)';
     const cm=lv(x,LEAD_COL.CITYMGR)||'(No City Manager)';
     const pe=lv(x,LEAD_COL.PE)||'(PE Not Assigned)';
@@ -5173,6 +5204,8 @@ function buildHRC(){
     </tr>`;
   }).join('');
 }
+
+  
 
 
 
