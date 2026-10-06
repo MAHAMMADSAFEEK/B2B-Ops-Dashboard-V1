@@ -5011,11 +5011,15 @@ function buildHRC(){
   }
     const rvIdx=hrcReviewIndex(),rvCache={};
   const issCnt={};
+  const _rStart=(yy!==null)?new Date(yy,mm-1,dayStart).getTime():_todayMs;
   issBuildRows().forEach(r=>{
+    const rd=r.date?pmvDMs(r.date):null;
+    if(rd!==null&&rd>asOf)return;
     const o=issCnt[r.pid]=issCnt[r.pid]||{today:0,total:0,done:0,pend:0};
     o.total++;
-    if(r.status==='Completed')o.done++;else o.pend++;
-    if(r.date&&pmvDMs(r.date)===_todayMs)o.today++;
+    const doneByThen=r.status==='Completed'&&(!r.endD||pmvDMs(r.endD)<=asOf);
+    if(doneByThen)o.done++;else o.pend++;
+    if(rd!==null&&rd>=_rStart&&rd<=asOf)o.today++;
   });
 
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
