@@ -4,9 +4,13 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Ops Dashboard</title>
+ <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('ops-theme')||'dark');}catch(e){}</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<style>
+
+  
+  
+ <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;min-height:100vh;}
 :root{--bg:#0f1117;--bg2:#181c27;--surface:#1e2336;--surface2:#252b40;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);--text:#f0f2f8;--muted:#8b92b0;--accent:#4f8ef7;--radius:10px;--radius-lg:16px;}
@@ -270,6 +274,28 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 .pmv-c2{position:sticky;left:280px;z-index:4;background:var(--surface);width:64px;min-width:64px;max-width:64px;text-align:center;border-right:2px solid var(--border2);}
 .pmr-table thead th.pmv-c0,.pmr-table thead th.pmv-c1,.pmr-table thead th.pmv-c2{z-index:6;background:var(--surface2);}
 
+
+   /* ── Light theme (white & blue) ── */
+:root[data-theme="dark"]{color-scheme:dark;}
+:root[data-theme="light"]{color-scheme:light;--bg:#eaf0fa;--bg2:#ffffff;--surface:#ffffff;--surface2:#f0f5fd;--border:rgba(20,50,110,0.10);--border2:rgba(20,50,110,0.20);--text:#14213d;--muted:#5a6b8c;--accent:#1f6feb;}
+[data-theme="light"] #overlay{background:rgba(234,240,250,0.97);}
+[data-theme="light"] .login-card,[data-theme="light"] .pmr-modal{box-shadow:0 12px 40px rgba(20,50,110,.18);}
+[data-theme="light"] .tab{background:#fff;color:var(--tc);border:1px solid var(--tc);opacity:1;}
+[data-theme="light"] .tab i{color:var(--tc);}
+[data-theme="light"] .tab:hover:not(.active){background:var(--surface2);opacity:1;}
+[data-theme="light"] .tab.active{background:var(--tc);color:#fff;box-shadow:0 4px 12px rgba(20,50,110,.25);}
+[data-theme="light"] .tab.active i{color:#fff;}
+[data-theme="light"] .pov-ms-panel,[data-theme="light"] .proj-dropdown{box-shadow:0 8px 24px rgba(20,50,110,.18);}
+[data-theme="light"] .bg{color:#15803d;}[data-theme="light"] .bb{color:#1d4ed8;}[data-theme="light"] .br{color:#c0392b;}
+[data-theme="light"] .bo{color:#b45309;}[data-theme="light"] .bp{color:#6d28d9;}[data-theme="light"] .bgr{color:#475569;}
+[data-theme="light"] .pmr-red{color:#c0392b;}[data-theme="light"] .pmr-orange{color:#b45309;}[data-theme="light"] .pmr-green{color:#15803d;}
+[data-theme="light"] .pmr-teal{color:#0e7490;}[data-theme="light"] .pmr-grey{color:#5a6b8c;}[data-theme="light"] .pmr-hold{color:#6d4bd1;}
+[data-theme="light"] .pmr-closed{color:#1e40af;}
+[data-theme="light"] [style*="rgba(255,255,255,0.08)"]{background:rgba(20,50,110,.10)!important;}
+.theme-toggle{font-size:12px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border2);background:transparent;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.theme-toggle:hover{background:var(--surface2);}
+   
+
 </style>
 </head>
 <body>
@@ -283,6 +309,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
 
   
 <div id="login-overlay" class="hidden">
+    <button class="theme-toggle" onclick="toggleTheme()" style="position:absolute;top:16px;right:16px;"></button>
   <div class="login-card">
     <div class="login-logo"><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToL7ghMGlVSZZldEAR63B8XCpsOUoKx00ATeQzw6OJACIfjw61nHrhpOQ9&s=10" alt="logo" style="height:28px;width:auto;border-radius:6px;"/> Ops Dashboard</div>
     <div class="login-sub">Sign in to continue</div>
@@ -304,6 +331,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
     <span id="user-chip" style="display:none;"></span>
     <span id="status-badge">Loading…</span>
     <span id="last-updated"></span>
+        <button class="theme-toggle" onclick="toggleTheme()"></button>
     <button class="btn-refresh" onclick="loadAll()"><i class="ti ti-refresh"></i> Refresh</button>
     <button class="logout-btn" id="logout-btn" style="display:none;" onclick="doLogout()"><i class="ti ti-logout"></i> Logout</button>
   </div>
@@ -970,6 +998,16 @@ function parseSheet(gid,sid){return new Promise((res,rej)=>{
       res(r.data);},
     error:e=>{clearTimeout(timer);rej(e);}});
 });}
+
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  try{localStorage.setItem('ops-theme',t);}catch(e){}
+  document.querySelectorAll('.theme-toggle').forEach(b=>{b.innerHTML=t==='light'?'<i class="ti ti-moon"></i> Dark':'<i class="ti ti-sun"></i> Light';});
+}
+function toggleTheme(){applyTheme(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light');}
+document.addEventListener('DOMContentLoaded',()=>applyTheme(document.documentElement.getAttribute('data-theme')||'dark'));
+
+  
 function setOverlay(txt){document.getElementById('overlay-txt').textContent=txt;}
 
   let _syncShown=0,_syncTarget=0,_syncTimer=null;
