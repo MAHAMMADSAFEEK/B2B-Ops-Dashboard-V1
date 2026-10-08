@@ -2634,10 +2634,11 @@ let projBadge;
   add(m.startDate,'Installation started','Structure shifting','#f5a623','ti-tool');
   hi.events.forEach(e=>add(e.date,e.type==='hold'?'Put on hold':e.type==='unhold'?'Resumed':'Cancelled',e.remark,e.type==='hold'?'#9b6dff':e.type==='unhold'?'#34c98a':'#e0518a',e.type==='hold'?'ti-player-pause':e.type==='unhold'?'ti-player-play':'ti-ban'));
   if(m.installStatus==='done')add(m.endDate,'Installation completed',m.tat!==null?'Install TAT '+m.tat+' days':'','#34c98a','ti-circle-check');
-  if(m.status==='done')add(m.lastAttDate,'Project completed',dl?'Project TAT '+dl.projTat+' days':'','#0d9488','ti-flag-check');
+   if(m.status==='done'){const pcd=[m.lastAttDate,m.lastDate,m.endDate].filter(Boolean).sort((a,b)=>b-a)[0];add(pcd,'Project completed',dl?'Project TAT '+dl.projTat+' days':'','#0d9488','ti-flag-check');}
   else add(m.lastActivity,'Last update','','#3bc0d8','ti-history');
   add(poExp,'Expected closure (per PO)','','#9b6dff','ti-calendar-due');
-  ev.sort((a,b)=>a.d-b.d);
+   const ORD=['Cluster head assigned','PO / project timeline start','Vendor finalized','First site update','Installation started','Put on hold','Resumed','Cancelled','Installation completed','Project completed','Last update','Expected closure (per PO)'];
+  ev.sort((a,b)=>(pmvDMs(a.d)-pmvDMs(b.d))||(ORD.indexOf(a.label)-ORD.indexOf(b.label)));
   let prev=null;
   const tlHtml=ev.map(e=>{
     const gap=prev?Math.round((pmvDMs(e.d)-pmvDMs(prev))/86400000):null;prev=e.d;
