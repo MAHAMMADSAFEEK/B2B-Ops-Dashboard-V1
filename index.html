@@ -2477,7 +2477,7 @@ if(_povMS.pname.size&&!_povMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
 document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,totalProjects);
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>City Manager</th><th>CPM</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Aging</th><th>Phase Summary</th><th>Detailed Report</th><th>Project Overview</th></tr>
+    document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>City Manager</th><th>CPM</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Aging</th><th>Phase Summary</th><th>Project Overview</th><th>Detailed Report</th></tr>';
   const tbody=document.getElementById('pov-body');
   if(!rows.length){tbody.innerHTML='<tr><td colspan="20" class="empty">No projects match the selected filters</td></tr>';return;}
   const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
@@ -2547,9 +2547,9 @@ let projBadge;
       <td>${projBadge}</td>
 <td style="font-size:11px;color:var(--muted)">—</td>
       <td>${(()=>{const a=povAgingOf(x);if(!a)return '<span style="color:var(--muted);font-size:11px;">—</span>';const c=povAgingColor(a);return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;font-weight:600;white-space:nowrap;">${a}</span>`;})()}</td>
-            <td>${phaseLink}</td>
-                  <td>${overviewLink}</td>
-      <td>${reportLink}</td> 
+      <td>${phaseLink}</td>
+      <td>${overviewLink}</td>
+      <td>${reportLink}</td>
     </tr>`;
   }).join('');
 }
