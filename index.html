@@ -953,7 +953,8 @@ let D={
   daily:{h:[],r:[]},
   cred:{h:[],r:[]},
   pmr:{h:[],r:[]},
-  issue:{h:[],r:[]}
+  issue:{h:[],r:[]},
+  visit:{h:[],r:[]}
 };
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -984,7 +985,7 @@ function setProgress(done,total){
     {clearInterval(_syncTimer);_syncTimer=null;}
   },20);
 }
-function resetProgress(){_syncShown=0;_syncTarget=0;if(_syncTimer){clearInterval(_syncTimer);_syncTimer=null;}const el=document.getElementById('sync-pct');if(el)el.textContent='0%';}
+function resetProgress(){_syncShown=0;_syncTarget=0;if(_syncTimer){clearInterval(_syncTimer);_syncTimer=null;}const el=document.getElementById('sync-pct');if(el)el.textContent='0%';const fl=document.getElementById('sync-fill');if(fl)fl.style.width='0%';}
 
   
 function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');if(name==='map'){setTimeout(()=>{buildProjMap();if(_projMap)_projMap.invalidateSize();},50);}
@@ -4991,7 +4992,7 @@ function buildHRC(){
     if(!projAtt[pid]||p>projAtt[pid].p)projAtt[pid]={p,st};
   });
 
-  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','istoday','istotal','isdone','ispend'];
+  const KEYS=['total','inst','done','handover','ch','na','vnf','tpending','ongoing','upd','noact','onsite','without','notupd','delayed','rvtotal','rvdone','rvpend','istoday','istotal','isdone','ispend','visited'];
   const _todayMs=pmvDMs(new Date());
 
 
@@ -5018,6 +5019,15 @@ function buildHRC(){
     if(doneByThen)o.done++;else o.pend++;
     if(rd!==null&&rd>=_rStart&&rd<=asOf)o.today++;
   });
+
+
+    const visitCnt={};
+  const _vFrom=(yy!==null)?new Date(yy,mm-1,dayStart).getTime():-Infinity;
+  const _vTo=(yy!==null)?new Date(yy,mm-1,dayEnd).getTime():Infinity;
+  Object.values(pmvBuildVisits()).forEach(l=>l.forEach(it=>{
+    if(!it.visited||it.dMs<_vFrom||it.dMs>_vTo)return;
+    visitCnt[it.pid]=(visitCnt[it.pid]||0)+1;
+  }));
 
   const zeroC=()=>{const o={};KEYS.forEach(k=>o[k]=0);return o;};
   const sumC=(a,b)=>{KEYS.forEach(k=>a[k]+=b[k]);return a;};
@@ -5056,6 +5066,7 @@ function buildHRC(){
     const rv=rvCache[pid];
         if(rv){c.rvtotal=1;c['rv'+rv]=1;}
     const ic=issCnt[pid];
+        c.visited=visitCnt[pid]||0;
     if(ic){c.istoday=ic.today;c.istotal=ic.total;c.isdone=ic.done;c.ispend=ic.pend;}
     return c;
   };
@@ -5143,7 +5154,8 @@ function buildHRC(){
       <th style="text-align:right;top:33px;color:#34c98a;${GRN}border-right:2px solid #34c98a;">Without Visit</th>
       <th style="text-align:right;top:33px;color:#4f8ef7;${BLU}border-left:2px solid #4f8ef7;">To Be Reviewed</th>
       <th style="text-align:right;top:33px;color:#34c98a;${BLU}">Reviewed</th>
-      <th style="text-align:right;top:33px;color:#f5a623;${BLU}border-right:2px solid #4f8ef7;">Pending</th>
+       <th style="text-align:right;top:33px;color:#f5a623;${BLU}">Pending</th>
+      <th style="text-align:right;top:33px;color:#3bc0d8;${BLU}border-right:2px solid #4f8ef7;" title="Site visits with check-out image in the selected period">Visited</th>
       <th style="text-align:right;top:33px;color:#9b6dff;${PUR}border-left:2px solid #9b6dff;">Today's Issues</th>
       <th style="text-align:right;top:33px;color:#9b6dff;${PUR}">Total Issues</th>
       <th style="text-align:right;top:33px;color:#34c98a;${PUR}">Resolved</th>
@@ -5179,7 +5191,8 @@ function buildHRC(){
     cell(c.delayed,'#e0518a',c.total,tP+'border-left:2px solid #e0518a;font-weight:700;','delayed',rid)+
     cell(c.rvtotal,'#4f8ef7',0,'border-left:2px solid #4f8ef7;font-weight:700;','rvtotal',rid)+
     cell(c.rvdone,'#34c98a',c.rvtotal,'font-weight:600;','rvdone',rid)+
-    cell(c.rvpend,'#f5a623',c.rvtotal,'border-right:2px solid #4f8ef7;','rvpend',rid)+
+      cell(c.rvpend,'#f5a623',c.rvtotal,'','rvpend',rid)+
+    cell(c.visited,'#3bc0d8',0,'border-right:2px solid #4f8ef7;font-weight:600;','visited',rid)+
     cell(c.istoday,'#9b6dff',0,'border-left:2px solid #9b6dff;font-weight:600;','istoday',rid)+
     cell(c.istotal,'#9b6dff',0,'font-weight:600;','istotal',rid)+
     cell(c.isdone,'#34c98a',c.istotal,'','isdone',rid)+
@@ -5214,7 +5227,7 @@ function buildHRC(){
   total:'Total Projects',inst:'Installation Completed',done:'Project Completed',ch:'Cancelled & Hold',
   na:'Not Assigned',vnf:'Vendor Not Finalized',tpending:'Total Pending',ongoing:'On Going',
   handover:'Handover Pending',upd:'Activity Updated',noact:'No Activity',onsite:'Onsite Visit',
-      without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects',rvtotal:'To Be Reviewed',rvdone:'Reviewed',rvpend:'Review Pending',istoday:"Today's Issues",istotal:'Total Issues',isdone:'Resolved Issues',ispend:'Pending Issues'
+      without:'Without Visit Update',notupd:'Not Updated',delayed:'Delayed Projects',rvtotal:'To Be Reviewed',rvdone:'Reviewed',rvpend:'Review Pending',istoday:"Today's Issues",istotal:'Total Issues',isdone:'Resolved Issues',ispend:'Pending Issues',visited:'Site Visited'
 };
 
 function hrcShowList(rid,key){
@@ -7047,7 +7060,7 @@ function pmvModal(html){
     const pm=lv(row,LEAD_COL.CITYMGR)||'(No PM)';
     const key=pm+'|'+pmvDMs(d);
     (out[key]=out[key]||[]).push({pid:lv(row,LEAD_COL.PID),name:lv(row,LEAD_COL.PNAME)||nm||lead,city:lv(row,LEAD_COL.CITY),
-      sched:sch,cin,cout:v(r,iCO),cinImg:v(r,iCIm),coutImg:v(r,iCOm),vRemark:v(r,iVR),remark:v(r,iAR),uid:v(r,iU),visited:!!cin});
+      sched:sch,cin,cout:v(r,iCO),cinImg:v(r,iCIm),coutImg:v(r,iCOm),vRemark:v(r,iVR),remark:v(r,iAR),uid:v(r,iU),visited:!!v(r,iCOm),dMs:pmvDMs(d)});
   });
   return out;
 }
@@ -7658,7 +7671,7 @@ function issShowRaw(pid){
         ${sevBadge(r.sev)}
         <span style="margin-left:auto;font-size:11px;color:var(--muted);">${r.date?fmtDate(r.date):'—'}${r.days!==null?' · '+r.days+'d open':' · Closed'}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">
         ${fld('Impacted Activity',v2(iAct))}
         ${fld('Issue Category',v2(iCat))}
       </div>
