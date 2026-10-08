@@ -2477,7 +2477,7 @@ if(_povMS.pname.size&&!_povMS.pname.has(lv(x,LEAD_COL.PNAME)))return false;
   document.getElementById('pov-city-table').innerHTML=povCityTable(cityCount,citySize);
   const pieEl=document.getElementById('pov-sizecat-chart'); if(pieEl)pieEl.innerHTML=povRenderSizePie(sizeCatCount);
 document.getElementById('pov-delay-report').innerHTML=povDelayReport(updCounts,totalProjects);
-  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>City Manager</th><th>CPM</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Aging</th><th>Phase Summary</th><th>Detailed Report</th></tr>';
+  document.getElementById('pov-head').innerHTML='<tr><th>#</th><th>City</th><th>Project ID</th><th>Project Name</th><th>Size Category</th><th>Capacity</th><th>City Manager</th><th>CPM</th><th>PE</th><th>Project timeline start from</th><th>Installation start date</th><th>Installation completed date</th><th>Installation TAT</th><th>Project TAT</th><th>Completion %</th><th>Installation Status</th><th>Project Status</th><th>Remarks</th><th>Aging</th><th>Phase Summary</th><th>Detailed Report</th><th>Project Overview</th></tr>
   const tbody=document.getElementById('pov-body');
   if(!rows.length){tbody.innerHTML='<tr><td colspan="20" class="empty">No projects match the selected filters</td></tr>';return;}
   const sortedRows=[...rows].sort((a,b)=>{const c=lv(a,LEAD_COL.CITY).localeCompare(lv(b,LEAD_COL.CITY));if(c!==0)return c;return lv(a,LEAD_COL.PNAME).localeCompare(lv(b,LEAD_COL.PNAME));});
@@ -2511,6 +2511,7 @@ let projBadge;
     const pctCell=`<div style="display:flex;align-items:center;gap:8px;min-width:90px;"><div style="flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;"><div style="width:${Math.min(pct,100)}%;height:100%;background:${pctColor};border-radius:3px;"></div></div><span style="font-size:12px;font-weight:600;color:${pctColor};min-width:30px;text-align:right;">${pct}%</span></div>`;
     const reportLink=`<a onclick="openProjectSummaryFor('${escId}','${escName}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(79,142,247,0.15);color:#4f8ef7;border:1px solid rgba(79,142,247,0.3);border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;"><i class="ti ti-external-link" style="font-size:12px;"></i>View Summary</a>`;
     const phaseLink=`<a onclick="openPhaseSummary('${escId}','${escName}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(155,109,255,0.15);color:#9b6dff;border:1px solid rgba(155,109,255,0.3);border-radius:6px;font-size:11px;font-weight:500;text-decoration:none;cursor:pointer;"><i class="ti ti-stack-2" style="font-size:12px;"></i>Phase Summary</a>`;
+     const overviewLink=`<a onclick="openProjectOverview('${escId}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(52,201,138,0.15);color:#34c98a;border:1px solid rgba(52,201,138,0.35);border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;cursor:pointer;"><i class="ti ti-layout-dashboard" style="font-size:12px;"></i>Overview</a>`;
     return `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td style="font-size:12px">${city}</td>
@@ -2547,10 +2548,178 @@ let projBadge;
 <td style="font-size:11px;color:var(--muted)">—</td>
       <td>${(()=>{const a=povAgingOf(x);if(!a)return '<span style="color:var(--muted);font-size:11px;">—</span>';const c=povAgingColor(a);return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;font-weight:600;white-space:nowrap;">${a}</span>`;})()}</td>
             <td>${phaseLink}</td>
+                  <td>${overviewLink}</td>
       <td>${reportLink}</td> 
     </tr>`;
   }).join('');
 }
+
+
+ function openProjectOverview(pid){
+  const x=D.lead.r.find(r=>lv(r,LEAD_COL.PID)===pid);if(!x)return;
+  const E=pemrEsc,name=lv(x,LEAD_COL.PNAME)||pid;
+  const m=computeProjectMetrics(pid),hi=povHoldInfo(x),dl=povComputeDelay(x);
+  const todayMs=pmvDMs(new Date());
+  const cat=sizeCategoryOf(x),catColor=SIZE_CAT_COLORS[cat];
+  const stTag=povProjectStatuses(x)[0],stCol=STAGE_STATUS_COLORS[stTag]||'#8b92b0';
+  const aging=povAgingOf(x);
+  const chName=lv(x,LEAD_COL.CLUSTER),pmName=lv(x,LEAD_COL.CITYMGR),peName=lv(x,LEAD_COL.PE);
+  const poStart=parseDate(lv(x,37)),poDays=parseFloat(lv(x,24))||0;
+  const poExp=(poStart&&poDays)?new Date(poStart.getTime()+poDays*86400000):null;
+  const vDate=vendorFinalizeDate(x);
+  const iCHA=ci(D.lead.h,'Clusterheadassignedon','clusterheadassigned');
+  const chDate=iCHA>=0?parseDate(lv(x,iCHA)):null;
+
+  // ── people & site activity ──
+  const emailIdx=ci(D.pe.h,'Mailid','email','mail');
+  const emailToPE={};
+  if(emailIdx>=0)D.pe.r.forEach(r=>{const em=v(r,emailIdx).toLowerCase().trim(),nm=v(r,1);if(em&&nm)emailToPE[em]=nm;});
+  const attRows=D.att.r.filter(r=>v(r,ATT_COL.PID)===pid);
+  const peMap={},allDays=new Set(),uids=new Set();
+  const tot={onsite:0,without:0,noact:0};
+  attRows.forEach(r=>{
+    const uid=v(r,ATT_COL.UID);if(uid)uids.add(uid);
+    const d=parseDate(v(r,ATT_COL.DATE));if(!d)return;
+    const ms=pmvDMs(d),em=v(r,ATT_COL.EMAIL).toLowerCase().trim(),nm=emailToPE[em]||em||'Unknown';
+    const o=peMap[nm]=peMap[nm]||{name:nm,days:new Set(),first:ms,last:ms,onsite:0,without:0,noact:0};
+    o.days.add(ms);allDays.add(ms);if(ms<o.first)o.first=ms;if(ms>o.last)o.last=ms;
+    const st=v(r,ATT_COL.M).toLowerCase();
+    if(st==='onsite visit'){o.onsite++;tot.onsite++;}else if(st==='without visit update'){o.without++;tot.without++;}else if(st==='no activity'){o.noact++;tot.noact++;}
+  });
+  const peList=Object.values(peMap).sort((a,b)=>b.days.size-a.days.size);
+  const dayArr=[...allDays].sort((a,b)=>a-b);
+
+  // ── TBT / vendors / manpower ──
+  const tbtRows=D.tbt.r.filter(r=>uids.has(v(r,PMR_TBT.UID)));
+  let tech=0,help=0;const vendors={};
+  tbtRows.forEach(r=>{
+    const t=parseFloat(v(r,3))||0,h2=parseFloat(v(r,4))||0;tech+=t;help+=h2;
+    const vn=v(r,1)||'—',d=parseDate(v(r,PMR_TBT.DATE));
+    const o=vendors[vn]=vendors[vn]||{name:vn,days:new Set(),mp:0};
+    if(d)o.days.add(pmvDMs(d));o.mp+=t+h2;
+  });
+  const vendList=Object.values(vendors).sort((a,b)=>b.days.size-a.days.size);
+
+  // ── phase journey ──
+  const pt=povComputePhaseTAT(x);
+  const phaseOrder=[];const seen=new Set();
+  D.workplan.r.filter(r=>(r[0]||'').trim()).forEach(r=>{const ph=(r[2]||'').trim()||'(No Phase)';if(!seen.has(ph)){seen.add(ph);phaseOrder.push(ph);}});
+  const maxDays=Math.max(1,...phaseOrder.map(p=>pt.phases[p]?pt.phases[p].days:0));
+
+  // ── PM review ──
+  const ph2=D.pmr.h;
+  const fx=(names,def)=>{for(const n of names){const i=ph2.findIndex(z=>issNorm(z)===n);if(i>=0)return i;}return def;};
+  const iD=fx(['date'],0),iP=fx(['projectid'],2),iIC=fx(['icok'],4),iMat=fx(['materialissue'],5);
+  const rvDay={};
+  D.pmr.r.forEach(r=>{if(v(r,iP)!==pid)return;const d=povParseHoldDate(v(r,iD));if(!d)return;const ms=pmvDMs(d);const ok=/^yes$/i.test(v(r,iIC))&&/^no$/i.test(v(r,iMat));if(rvDay[ms]!==true)rvDay[ms]=ok;});
+  const rvKeys=Object.keys(rvDay).map(Number).sort((a,b)=>a-b);
+  const rvOk=rvKeys.filter(k=>rvDay[k]).length;
+
+  // ── PM site visits ──
+  const visits=[].concat(...Object.values(pmvBuildVisits())).filter(it=>it.pid===pid);
+  const visDone=visits.filter(it=>it.visited).length;
+
+  // ── issues ──
+  const iss=issBuildRows().filter(r=>r.pid===pid).sort((a,b)=>(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0));
+  const issDone=iss.filter(r=>r.status==='Completed').length;
+  const sevBadge=s=>s?`<span class="badge" style="background:${ISS_SEV_COL[s]}22;color:${ISS_SEV_COL[s]};border:1px solid ${ISS_SEV_COL[s]}55;white-space:nowrap;"><i class="ti ti-flag-filled" style="font-size:11px;margin-right:3px;"></i>${s}</span>`:'<span style="color:var(--muted);">—</span>';
+
+  // ── journey timeline ──
+  const ev=[];
+  const add=(d,label,sub,color,icon)=>{if(d)ev.push({d,label,sub:sub||'',color,icon});};
+  add(chDate,'Cluster head assigned',chName,'#4f8ef7','ti-user-check');
+  add(poStart,'PO / project timeline start',poDays?poDays+' days as per PO':'','#4f8ef7','ti-file-invoice');
+  add(vDate,'Vendor finalized','','#8b92b0','ti-building-store');
+  if(dayArr.length)add(new Date(dayArr[0]),'First site update',(peList[0]&&peList.length===1)?peList[0].name:'','#3bc0d8','ti-map-pin');
+  add(m.startDate,'Installation started','Structure shifting','#f5a623','ti-tool');
+  hi.events.forEach(e=>add(e.date,e.type==='hold'?'Put on hold':e.type==='unhold'?'Resumed':'Cancelled',e.remark,e.type==='hold'?'#9b6dff':e.type==='unhold'?'#34c98a':'#e0518a',e.type==='hold'?'ti-player-pause':e.type==='unhold'?'ti-player-play':'ti-ban'));
+  if(m.installStatus==='done')add(m.endDate,'Installation completed',m.tat!==null?'Install TAT '+m.tat+' days':'','#34c98a','ti-circle-check');
+  if(m.status==='done')add(m.lastAttDate,'Project completed',dl?'Project TAT '+dl.projTat+' days':'','#0d9488','ti-flag-check');
+  else add(m.lastActivity,'Last update','','#3bc0d8','ti-history');
+  add(poExp,'Expected closure (per PO)','','#9b6dff','ti-calendar-due');
+  ev.sort((a,b)=>a.d-b.d);
+  let prev=null;
+  const tlHtml=ev.map(e=>{
+    const gap=prev?Math.round((pmvDMs(e.d)-pmvDMs(prev))/86400000):null;prev=e.d;
+    const future=pmvDMs(e.d)>todayMs;
+    return `<div style="position:relative;padding:0 0 14px 0;">
+      <span style="position:absolute;left:-26px;top:1px;width:20px;height:20px;border-radius:50%;background:${future?'var(--surface)':e.color+'22'};border:2px ${future?'dashed':'solid'} ${e.color};display:flex;align-items:center;justify-content:center;"><i class="ti ${e.icon}" style="font-size:11px;color:${e.color};"></i></span>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><b style="font-size:12px;">${E(e.label)}</b><span style="font-size:11px;color:var(--muted);">${fmtDate(e.d)}${future?' · upcoming':''}</span>${gap!==null&&gap>0?`<span style="font-size:10px;color:var(--muted);">+${gap}d</span>`:''}</div>
+      ${e.sub?`<div style="font-size:11px;color:var(--muted);margin-top:1px;">${E(e.sub)}</div>`:''}</div>`;
+  }).join('');
+
+  // ── render helpers ──
+  const sect=(icon,t,inner)=>`<div style="margin-top:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;padding-left:8px;border-left:3px solid #4f8ef7;display:flex;align-items:center;gap:6px;"><i class="ti ${icon}"></i>${t}</div>${inner}</div>`;
+  const person=(icon,role,nm,col)=>`<div style="flex:1;min-width:180px;background:var(--bg2);border-radius:10px;padding:10px 12px;border-left:3px solid ${col};"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;align-items:center;gap:6px;"><i class="ti ${icon}" style="color:${col};"></i>${role}</div><div style="font-size:13px;font-weight:600;margin-top:4px;">${nm?E(nm):'<span style="color:#e74c3c;">Not assigned</span>'}</div></div>`;
+  const chip=(lbl,val,col)=>`<div style="background:${col}14;border:1px solid ${col}40;border-radius:8px;padding:6px 12px;min-width:92px;"><div style="font-size:16px;font-weight:700;color:${col};">${val}</div><div style="font-size:10px;color:var(--muted);">${lbl}</div></div>`;
+  const dash='<span style="color:var(--muted);">—</span>';
+
+  const kpis=
+    metricWithBar('ti-chart-donut','Completion',m.weightedPct+'%','Workplan weighted','#34c98a',m.weightedPct,'#34c98a')+
+    metric('ti-clock-play','Project TAT',dl?dl.projTat+'d':'—',dl?(dl.delayBy>0?`${dl.delayBy}d ${dl.isDone?'late':'delayed'} · PO ${dl.poDays}d`:`On time · PO ${dl.poDays}d`):'No PO data',dl&&dl.delayBy>0?'#e74c3c':'#4f8ef7')+
+    metric('ti-tool','Installation TAT',m.tat!==null?m.tat+'d':'—',m.installStatus==='done'?'Completed':m.installStatus==='wip'?'Running':'Not started','#f5a623')+
+    metric('ti-history','Last update',m.lastActivity?Math.floor((todayMs-pmvDMs(m.lastActivity))/86400000)+'d ago':'Never',m.lastActivity?fmtDate(m.lastActivity):'','#3bc0d8')+
+    metric('ti-users','PEs worked',peList.length,peName?'Current: '+peName:'No PE assigned','#9b6dff')+
+    metric('ti-bug','Issues',iss.length,iss.length?`${issDone} resolved · ${iss.length-issDone} open`:'None logged','#e0518a');
+
+  const peRows=peList.map(p=>`<tr><td style="font-weight:500;">${E(p.name)}</td><td>${p.name===peName?'<span class="badge bg">Current PE</span>':'<span class="badge bgr">Earlier</span>'}</td><td style="text-align:right;font-weight:600;">${p.days.size}</td><td style="font-size:11px;white-space:nowrap;">${fmtDate(new Date(p.first))}</td><td style="font-size:11px;white-space:nowrap;">${fmtDate(new Date(p.last))}</td><td style="text-align:center;color:#34c98a;">${p.onsite||'—'}</td><td style="text-align:center;color:#3bc0d8;">${p.without||'—'}</td><td style="text-align:center;color:#f5a623;">${p.noact||'—'}</td></tr>`).join('');
+  const peTable=peList.length?`<div class="table-wrap"><table style="font-size:12px;width:100%;"><thead><tr><th>PE</th><th>Role</th><th style="text-align:right;">Days</th><th>First</th><th>Last</th><th style="text-align:center;">Onsite</th><th style="text-align:center;">Without visit</th><th style="text-align:center;">No activity</th></tr></thead><tbody>${peRows}</tbody></table></div>`:'<div class="empty" style="padding:14px;">No site updates yet.</div>';
+
+  const phaseRows=phaseOrder.map((ph,i)=>{
+    const t=pt.phases[ph];
+    const w=t?Math.max(4,Math.round(t.days/maxDays*100)):0;
+    return `<tr><td style="color:var(--muted);text-align:center;">${i+1}</td><td style="font-weight:500;">${E(ph)}</td><td style="font-size:11px;white-space:nowrap;">${t?fmtDate(t.start):dash}</td><td style="font-size:11px;white-space:nowrap;">${t?fmtDate(t.end):dash}</td><td style="min-width:130px;">${t?`<div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:#4f8ef7;"></div></div><b style="font-size:11px;min-width:30px;text-align:right;">${t.days}d</b></div>`:'<span class="badge bgr">Not started</span>'}</td></tr>`;
+  }).join('');
+
+  const vendRows=vendList.map(v2=>`<tr><td style="font-weight:500;">${E(v2.name)}</td><td style="text-align:right;">${v2.days.size}</td><td style="text-align:right;font-weight:600;">${v2.mp}</td></tr>`).join('');
+
+  const issRows=iss.map((r,n)=>{
+    const c=ISS_COL[r.status]||'#8b92b0';
+    return `<tr><td style="color:var(--muted);">${n+1}</td><td style="font-size:11px;white-space:nowrap;">${r.date?fmtDate(r.date):'—'}</td><td><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span></td><td>${sevBadge(r.sev)}</td><td style="font-weight:600;">${r.tat!=null?r.tat+'d':'—'}${r.status!=='Completed'&&r.tat!=null?' <span style="font-size:10px;color:var(--muted);">running</span>':''}</td><td style="font-size:12px;max-width:340px;white-space:normal;">${E(r.desc)||'—'}</td></tr>`;
+  }).join('');
+
+  const esc=pid.replace(/'/g,"\\'"),en=name.replace(/'/g,"\\'");
+  pmvModal(`<div class="pmr-modal" style="max-width:1100px;max-height:94vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;">${E(name)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center;">
+          <span class="badge bp">${E(pid)}</span>
+          <span style="font-size:12px;color:var(--muted);"><i class="ti ti-map-pin"></i> ${E(lv(x,LEAD_COL.CITY))||'—'}</span>
+          <span style="font-size:12px;color:var(--muted);">${E(lv(x,LEAD_COL.SIZE))||'—'} kW</span>
+          <span class="badge" style="background:${catColor}22;color:${catColor};border:1px solid ${catColor}55;">${cat}</span>
+          <span class="badge" style="background:${stCol}22;color:${stCol};border:1px solid ${stCol}55;">${E(stTag)}</span>
+          ${aging?`<span class="badge" style="background:${povAgingColor(aging)}22;color:${povAgingColor(aging)};border:1px solid ${povAgingColor(aging)}55;">${aging}</span>`:''}
+          ${dl&&dl.delayBy>0&&!dl.isDone?`<span class="badge br">⚠ ${dl.delayBy}d delayed</span>`:''}
+        </div>
+      </div>
+      <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="overflow:auto;padding-right:4px;">
+      <div class="metrics" style="margin-bottom:0;">${kpis}</div>
+
+      ${sect('ti-sitemap','Ownership',`<div style="display:flex;gap:10px;flex-wrap:wrap;">${person('ti-users-group','Cluster head',chName,'#4f8ef7')}${person('ti-user-cog','Project manager (city manager)',pmName,'#9b6dff')}${person('ti-user','Project engineer (current)',peName,'#f5a623')}</div>`)}
+
+      ${sect('ti-timeline','Project journey',`<div style="margin-left:10px;border-left:2px solid var(--border2);padding-left:26px;padding-top:4px;">${tlHtml||'<div class="empty" style="padding:14px;">No dated milestones.</div>'}</div>`)}
+
+      ${sect('ti-activity','Site activity',`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">${chip('Days updated',allDays.size,'#34c98a')}${chip('Onsite visits',tot.onsite,'#34c98a')}${chip('Without visit',tot.without,'#3bc0d8')}${chip('No activity',tot.noact,'#f5a623')}${chip('TBT reports',tbtRows.length,'#9b6dff')}${chip('DPR entries',m.dprCount,'#4f8ef7')}${chip('Manpower (days)',tech+help,'#f5a623')}${chip('Vendors',vendList.length,'#8b92b0')}</div>${peTable}`)}
+
+      ${vendList.length?sect('ti-building-store','Vendors on site',`<div class="table-wrap"><table style="font-size:12px;width:100%;"><thead><tr><th>Vendor</th><th style="text-align:right;">Days</th><th style="text-align:right;">Manpower</th></tr></thead><tbody>${vendRows}</tbody></table></div>`):''}
+
+      ${sect('ti-stack-2','Phase-wise progress',`<div class="table-wrap"><table style="font-size:12px;width:100%;"><thead><tr><th style="width:34px;text-align:center;">#</th><th>Phase</th><th>Start</th><th>End</th><th>Duration</th></tr></thead><tbody>${phaseRows||'<tr><td colspan="5" class="empty">No workplan data</td></tr>'}</tbody></table></div>`)}
+
+      ${sect('ti-user-search','PM review and site visits',`<div style="display:flex;gap:8px;flex-wrap:wrap;">${chip('Review days',rvKeys.length,'#4f8ef7')}${chip('Review completed',rvOk,'#34c98a')}${chip('Review pending',rvKeys.length-rvOk,'#f5a623')}${chip('Last review',rvKeys.length?fmtDate(new Date(rvKeys[rvKeys.length-1])):'—','#8b92b0')}${chip('PM site visits',visDone+'/'+visits.length,'#3bc0d8')}</div>`)}
+
+      ${sect('ti-bug','Issues',iss.length?`<div class="table-wrap"><table style="font-size:12px;width:100%;"><thead><tr><th>#</th><th>Started</th><th>Status</th><th>Severity</th><th>Issue TAT</th><th>Issue</th></tr></thead><tbody>${issRows}</tbody></table></div>`:'<div class="empty" style="padding:14px;">No issues logged for this project.</div>')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+      <button class="pe-clr-btn" onclick="openPhaseSummary('${esc}','${en}')"><i class="ti ti-stack-2" style="font-size:12px;"></i> Phase summary</button>
+      <button class="pe-clr-btn" onclick="pemrCloseDay();openProjectSummaryFor('${esc}','${en}')"><i class="ti ti-external-link" style="font-size:12px;"></i> Full project summary</button>
+    </div>
+  </div>`);
+}
+
+ 
 
 function openProjectSummaryFor(projId,projName){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
