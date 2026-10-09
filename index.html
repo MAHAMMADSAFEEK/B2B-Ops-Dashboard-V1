@@ -7422,7 +7422,14 @@ function pmvShowDate(dMs){
   const dt=new Date(dMs);
   const label=dt.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'short',year:'numeric'});
   const cnt={done:0,ongoing:0,pending:0,leave:0,none:0,future:0};let tE=0,tU=0;
-  const rows=c.pms.map((pm,i)=>{
+  const _SO={pending:0,ongoing:1,done:2,leave:3,none:4,future:4};
+  const rows=c.pms.map((pm,i)=>({pm,i}))
+    .sort((a,b)=>{
+      const sa=c.stat(a.pm,dMs).status,sb=c.stat(b.pm,dMs).status;
+      return (_SO[sa]-_SO[sb])
+        ||[...a.pm.cities].sort()[0].localeCompare([...b.pm.cities].sort()[0])
+        ||a.pm.name.localeCompare(b.pm.name);
+    }).map(({pm,i})=>{
     const s=c.stat(pm,dMs);cnt[s.status]++;tE+=s.exp.length;tU+=s.upd.length;
     const cfg=PMV_STATUS[s.status];
     const lab=(s.status==='none'||s.status==='future')?'<span class="badge bgr">Nothing expected</span>':`<span class="badge ${cfg.badge}">${cfg.label}</span>`;
