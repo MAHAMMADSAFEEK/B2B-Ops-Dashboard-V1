@@ -7811,35 +7811,35 @@ function renderISSDetail(){
       <td>${pbadge}</td>
       <td>${tatCell}</td>
       <td>${ageBadge(p.oldest)}</td></tr>`;
-    if(!exp)return main;
+
+       if(!exp)return main;
     const subs=[...p.l].sort((a,b)=>((a.status==='Completed')-(b.status==='Completed'))||((b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)));
-    const cards=subs.map((r,n)=>{
+    const iAct=issCol(hdrs,['impactedactivity']),iCat=issCol(hdrs,['issuecategory']);
+    const g=(r,k)=>k>=0?String(r.raw[k]==null?'':r.raw[k]).trim():'';
+    const dash='<span style="color:var(--muted);">—</span>';
+    const lh=t=>`<td style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 12px;">${t}</td>`;
+    const subHead=`<tr style="background:rgba(79,142,247,0.05);">${lh('')}${lh('Issue')}${lh('Issue / Blocker')}${lh('Impacted Activity')}${lh('Category')}${lh('Raised on')}${lh('Severity')}${lh('')}${lh('Completed on')}${lh('Status')}${lh('Issue TAT')}${lh('Age')}</tr>`;
+    const subRows=subs.map((r,n)=>{
       const c=ISS_COL[r.status];
-      const tatTxt=r.tat==null?'—':r.tat+' days'+(r.status!=='Completed'?' (running)':'');
-      const HIDE=['issueraisedby','leadid','sseid','sitename','dadate','projectstartdate','pe','pm','ch','uniqueid','projectid','projectname'];
-      const fields=hdrs.map((hd,k)=>{
-        if(HIDE.includes(issNorm(hd)))return '';
-        const val=String(r.raw[k]==null?'':r.raw[k]).trim();
-        if(!val)return '';
-        const isUrl=/^https?:\/\//i.test(val);
-        return `<div style="flex:0 0 auto;min-width:120px;max-width:260px;padding:0 14px 0 0;margin-right:14px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--muted);">${pemrEsc(hd)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-word;">${isUrl?`<a href="${pemrEsc(val)}" target="_blank" rel="noopener" style="color:#4f8ef7;">${pemrEsc(val.length>50?val.slice(0,50)+'…':val)}</a>`:pemrEsc(val)}</div></div>`;
-      }).join('');
-      return `<div style="border-bottom:1px solid var(--border);padding:8px 0 10px;margin-bottom:4px;">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-          <b style="font-size:12px;">Issue ${n+1}</b>
-          <span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span>
-          ${sevBadge(r.sev)}
-          <span style="font-size:11px;color:var(--muted);">Started <b style="color:var(--text);">${r.date?fmtDate(r.date):'—'}</b></span>
-          <span style="font-size:11px;color:var(--muted);">Completed <b style="color:var(--text);">${r.status==='Completed'?(r.endD?fmtDate(r.endD):'—'):'Open'}</b></span>
-          <span style="font-size:11px;color:var(--muted);">Issue TAT <b style="color:#4f8ef7;">${tatTxt}</b></span>
-        </div>
-         <div style="display:flex;flex-wrap:nowrap;overflow-x:auto;padding:2px 0 4px;">${fields}</div>
-      </div>`;
+      const tatTxt=r.tat==null?'—':r.tat+'d'+(r.status!=='Completed'?' <span style="font-size:10px;color:var(--muted);">running</span>':'');
+      const bg='background:rgba(79,142,247,0.03);';
+      return `<tr style="${bg}">
+        <td style="border-left:3px solid #4f8ef7;color:var(--muted);text-align:center;font-size:11px;">${i+1}.${n+1}</td>
+        <td><span class="badge bgr">Issue ${n+1}</span></td>
+        <td style="font-size:12px;white-space:normal;min-width:240px;max-width:360px;line-height:1.45;">${pemrEsc(r.desc)||dash}</td>
+        <td style="font-size:12px;white-space:normal;">${pemrEsc(g(r,iAct))||dash}</td>
+        <td style="font-size:12px;white-space:normal;">${pemrEsc(g(r,iCat))||dash}</td>
+        <td style="font-size:12px;white-space:nowrap;">${r.date?fmtDate(r.date):dash}</td>
+        <td>${sevBadge(r.sev)}</td>
+        <td></td>
+        <td style="font-size:12px;white-space:nowrap;">${r.status==='Completed'?(r.endD?fmtDate(r.endD):'—'):'<span style="color:#f5a623;">Open</span>'}</td>
+        <td><span class="badge" style="background:${c}22;color:${c};border:1px solid ${c}55;white-space:nowrap;">${r.status}</span></td>
+        <td style="font-size:12px;font-weight:600;color:#4f8ef7;">${tatTxt}</td>
+        <td>${ageBadge(r.days)}</td></tr>`;
     }).join('');
-    const sub=`<tr><td></td><td colspan="11" style="padding:8px 0 14px 24px;border-left:3px solid #4f8ef7;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;">All issues for ${pemrEsc(f.name)} (${p.total}) · total issue TAT ${p.tatKnown?p.tatSum+' days':'—'} · CT Daily Review Tracker</div>
-      ${cards}</td></tr>`;
-    return main+sub;
+    return main+subHead+subRows;
+
+   
   }).join('');
 }
   
