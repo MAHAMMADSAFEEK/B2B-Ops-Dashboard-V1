@@ -1865,9 +1865,15 @@ let completedPctSum=0;
   if(!tbtForProj.length){tbtBody.innerHTML='<tr><td colspan="11" class="empty">No TBT entries found for this project</td></tr>';}
   const infoBar=document.getElementById('proj-info-bar');
   infoBar.style.display='flex';
+  const _cap=leadRow?lv(leadRow,LEAD_COL.SIZE):'',_pe=leadRow?lv(leadRow,LEAD_COL.PE):'',_pm=leadRow?lv(leadRow,LEAD_COL.CITYMGR):'',_ch=leadRow?lv(leadRow,LEAD_COL.CLUSTER):'';
+  const _nm=n=>n?`<strong>${n}</strong>`:'<strong style="color:#e74c3c;">Not assigned</strong>';
   infoBar.innerHTML=`
     <span><strong>${projName}</strong></span>
     <span>ID: <strong>${projId}</strong></span>
+    <span>Capacity: <strong>${_cap?_cap+' kW':'—'}</strong></span>
+    <span>PE: ${_nm(_pe)}</span>
+    <span>PM: ${_nm(_pm)}</span>
+    <span>CH: ${_nm(_ch)}</span>
     <span>Attendance entries: <strong>${attRowsForProj.length}</strong></span>
     <span>Unique IDs tracked: <strong>${uniqueIdsForProj.size}</strong></span>
     <span>DPR records: <strong>${dprForProj.length}</strong></span>
