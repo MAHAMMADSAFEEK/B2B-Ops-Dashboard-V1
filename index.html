@@ -7668,14 +7668,20 @@ function issueKeySet(){
 }
 
 
-  function issBuildRows(){
+ function issBuildRows(){
   const h=D.issue.h;if(!h.length)return [];
-  const iL=issCol(h,['leadid']),iD=issCol(h,['date']),iP=issCol(h,['projectid']),iN=issCol(h,['projectname']);
+  const iL=issCol(h,['leadid']),iP=issCol(h,['projectid']);
+  let iD=issCol(h,['date']);if(iD<0)iD=0;                          // raised date = column A
+  let iSS=issCol(h,['sseid']);if(iSS<0)iSS=3;                       // SSE ID = Project ID = column D
+  const iSite=issCol(h,['sitename']),iN=Math.max(issCol(h,['projectname']),iSite);
+  const hPE=issCol(h,['pe']),hPM=issCol(h,['pm']),hCH=issCol(h,['ch']);   // the sheet's own PE / PM / CH columns
   const iC=issCol(h,['centralclosurestatus']),iH=issCol(h,['chescalationstatus']),iM=issCol(h,['pmescalationstatus']),iE=issCol(h,['escalationstatuspe']);
   const iDesc=(()=>{let i=issCol(h,['issueblocker']);if(i>=0)return i;return h.findIndex(z=>{const n=issNorm(z);return (n.includes('blocker')||n.includes('remark')||n.includes('comment'))&&!n.includes('status');});})();
   let iSev=h.findIndex(z=>issNorm(z).includes('severity'));if(iSev<0)iSev=13;
   const normSev=s=>{const l=String(s||'').trim().toLowerCase();return l==='high'?'High':l==='medium'?'Medium':l==='low'?'Low':'';};
   const iEnd=h.findIndex(z=>{const n=issNorm(z);return (n.includes('closure')||n.includes('closed')||n.includes('completion')||n.includes('resolved'))&&(n.includes('date')||n.includes('time'))&&!n.includes('status');});
+  // each level's action date sits in the column right NEXT to its status column (O->P, Q->R, S->T, U->V)
+  const LV=[['PE',iE],['PM',iM],['CH',iH],['Central',iC]].map(z=>[z[0],z[1],z[1]>=0?z[1]+1:-1]);
   const miss=[['Lead ID',iL],['Date',iD],['Central closure status',iC],['CH Escalation Status',iH],['PM Escalation Status',iM],['Escalation Status (PE)',iE]].filter(z=>z[1]<0).map(z=>z[0]);
   const note=document.getElementById('iss-note');
   if(note)note.innerHTML=(!h.length||miss.length)?`<div style="padding:10px 12px;margin-bottom:12px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:8px;font-size:12px;">Columns not found in the issue sheet: <b>${miss.join(', ')}</b>. Check the header names.</div>`:'';
@@ -7683,31 +7689,46 @@ function issueKeySet(){
   const leadToPid={};
   if(pL>=0&&pP>=0)D.pmr.r.forEach(x=>{const l=v(x,pL),p=v(x,pP);if(l&&p)leadToPid[l]=p;});
   const leadRow={};D.lead.r.forEach(x=>{const p=lv(x,LEAD_COL.PID);if(p)leadRow[p]=x;});
+  // one spelling per person ('krunal gemlawala' / 'krunal Gemlawala')
+  const _nm={};(_leadAll||D.lead.r).forEach(x=>{[LEAD_COL.PE,LEAD_COL.CITYMGR,LEAD_COL.CLUSTER].forEach(c=>{const n=lv(x,c);if(n&&!_nm[n.toLowerCase()])_nm[n.toLowerCase()]=n;});});
+  const canon=n=>{n=String(n||'').trim();return n?(_nm[n.toLowerCase()]||n):'';};
   const isAdmin=_user&&_user.role==='admin';
+  const me=String(_user&&_user.name||'').trim().toLowerCase();
   const today=new Date();today.setHours(0,0,0,0);
   const rows=[];
   D.issue.r.forEach(x=>{
     const lead=iL>=0?v(x,iL):'';
-    if(!lead&&iP<0)return;
-    let pid=iP>=0?v(x,iP):'';if(!pid)pid=leadToPid[lead]||'';
+    const sse=iSS>=0?v(x,iSS):'';
+    if(!lead&&!sse&&!(iDesc>=0&&v(x,iDesc)))return;                         // completely empty line
+    let pid=iP>=0?v(x,iP):'';
+    if(!pid&&sse&&leadRow[sse])pid=sse;                                       // SSE ID = Project ID in the Lead Tracker
+    if(!pid)pid=leadToPid[lead]||'';
+    if(!pid&&sse)pid=sse;                                                     // still its own row if the Lead Tracker doesn't have it
     const lr=leadRow[pid];
-    if(!lr&&!isAdmin)return;
+    const sPE=canon(hPE>=0?v(x,hPE):''),sPM=canon(hPM>=0?v(x,hPM):''),sCH=canon(hCH>=0?v(x,hCH):'');
+    if(!isAdmin){const mine=_user&&_user.role==='cluster'?sCH:_user&&_user.role==='citymgr'?sPM:_user&&_user.role==='pe'?sPE:'';if(!lr&&(!me||mine.toLowerCase()!==me))return;}
     const status=issStatusOf(iC>=0?v(x,iC):'',iH>=0?v(x,iH):'',iM>=0?v(x,iM):'',iE>=0?v(x,iE):'');
-    const d=iD>=0?povParseHoldDate(v(x,iD)):null;
+    const d=povParseHoldDate(v(x,iD));
     const s0=d?new Date(d.getFullYear(),d.getMonth(),d.getDate()):null;
-    const endD=iEnd>=0?povParseHoldDate(v(x,iEnd)):null;
+    const sv=LV.map(z=>z[1]>=0?v(x,z[1]).toLowerCase():'');
+    let raisedBy='',doneBy='',endD=null;
+    if(sv[0])raisedBy='PE';else if(sv[1])raisedBy='PM';else if(sv[2])raisedBy='CH';        // who raised it
+    if(status==='Completed'){                                                               // who completed it + the date next to that status
+      for(const i of [2,1,0,3]){if(sv[i]==='completed'){doneBy=LV[i][0];endD=LV[i][2]>=0?povParseHoldDate(v(x,LV[i][2])):null;break;}}
+      if(!endD&&iEnd>=0)endD=povParseHoldDate(v(x,iEnd));
+    }
     let days=null,bucket='',tat=null;
     if(status!=='Completed'&&s0){
       days=Math.max(0,Math.floor((today-s0)/86400000));
       const b=ISS_BUCKETS.find(z=>days>=z[1]&&days<=z[2]);bucket=b?b[0]:'';
-      tat=days;                                   // not solved → today − requested date
+      tat=days;                                                                            // not solved -> today - raised date
     }else if(s0&&endD){
-      tat=Math.max(0,Math.round((new Date(endD.getFullYear(),endD.getMonth(),endD.getDate())-s0)/86400000));
+      tat=Math.max(0,Math.round((new Date(endD.getFullYear(),endD.getMonth(),endD.getDate())-s0)/86400000));   // completion date - raised date
     }
-    rows.push({lead,pid:pid||'—',name:(iN>=0&&v(x,iN))||(lr?lv(lr,LEAD_COL.PNAME):'')||pid||'—',
-      city:lr?lv(lr,LEAD_COL.CITY)||'—':'—',pm:lr?lv(lr,LEAD_COL.CITYMGR)||'(No PM)':'—',pe:lr?lv(lr,LEAD_COL.PE):'',
+    rows.push({lead,pid:pid||(lead?'LEAD:'+lead:'—'),name:(iN>=0&&v(x,iN))||(lr?lv(lr,LEAD_COL.PNAME):'')||pid||'—',
+      city:lr?lv(lr,LEAD_COL.CITY)||'—':'—',pm:sPM||(lr?lv(lr,LEAD_COL.CITYMGR)||'(No PM)':'—'),pe:sPE||(lr?lv(lr,LEAD_COL.PE):''),
       size:lr?sizeCategoryOf(lr):'—',status,date:d,days,bucket,tat,endD,
-      desc:iDesc>=0?v(x,iDesc):'',sev:normSev(iSev>=0?v(x,iSev):''),raw:x});
+      desc:iDesc>=0?v(x,iDesc):'',sev:normSev(iSev>=0?v(x,iSev):''),raisedBy,doneBy,isNew:!lr,raw:x});
   });
   return rows;
 }
