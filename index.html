@@ -7668,7 +7668,9 @@ function issueKeySet(){
 }
 
 
- function issBuildRows(){
+/* ==== Issue Tracker fix: paste this block at the very bottom of the <script>, directly ABOVE the line  loadAll();
+   It replaces whatever issBuildRows() is defined above (so a duplicate / old copy can no longer win). ==== */
+issBuildRows=function(){
   const h=D.issue.h;if(!h.length)return [];
   const iL=issCol(h,['leadid']),iP=issCol(h,['projectid']);
   let iD=issCol(h,['date']);if(iD<0)iD=0;                          // raised date = column A
@@ -7731,7 +7733,8 @@ function issueKeySet(){
       desc:iDesc>=0?v(x,iDesc):'',sev:normSev(iSev>=0?v(x,iSev):''),raisedBy,doneBy,isNew:!lr,raw:x});
   });
   return rows;
-}
+};
+console.log('issBuildRows v2 active (SSE ID mapping + issue-sheet owners)');
 
   
 
