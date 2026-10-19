@@ -720,26 +720,30 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
       <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="iss-ms-size"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearISSFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
-    </div>
     <div style="padding:16px 24px 24px;">
       <div class="section-title">Issue Tracker <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">CT Daily Review Tracker · click any card / number for the project list</span></div>
       <div id="iss-note"></div>
       <div class="metrics" id="iss-metrics" style="grid-template-columns:repeat(4,minmax(110px,1fr)) minmax(250px,1.6fr);align-items:stretch;"></div>
 
-          <div class="charts-grid" style="grid-template-columns:1fr 1fr 1.5fr;align-items:start;">
+      <div class="charts-grid" style="grid-template-columns:1fr 1fr 1.5fr;align-items:start;">
         <div>
           <div class="card"><div class="card-title"><i class="ti ti-list-details"></i> Status-wise <span style="font-size:11px;font-weight:400;">· click for City / Size split</span></div><div id="iss-status"></div></div>
           <div class="card"><div class="card-title"><i class="ti ti-clock-exclamation"></i> Aging <span style="font-size:11px;font-weight:400;">· open issues only</span></div><div id="iss-aging"></div></div>
         </div>
-        <div class="card"><div class="card-title"><i class="ti ti-category"></i> Category-wise <span style="font-size:11px;font-weight:400;">· click for Impacted Activity split</span></div><div class="table-wrap" id="iss-cat"></div></div>
-        <div class="card"><div class="card-title"><i class="ti ti-user-cog"></i> PM-wise Issues</div><div class="table-wrap" id="iss-pm"></div></div>
+        <div>
+          <div class="card"><div class="card-title"><i class="ti ti-category"></i> Category-wise <span style="font-size:11px;font-weight:400;">· click for Impacted Activity split</span></div><div class="table-wrap" id="iss-cat"></div></div>
+          <div class="card"><div class="card-title"><i class="ti ti-building"></i> City-wise <span style="font-size:11px;font-weight:400;">· escalated vs closed · click a bar for the project list</span></div><div id="iss-city-chart"></div></div>
+        </div>
+        <div>
+          <div class="card"><div class="card-title"><i class="ti ti-user-cog"></i> PM-wise Issues</div><div class="table-wrap" id="iss-pm"></div></div>
+          <div class="card"><div class="card-title"><i class="ti ti-chart-bar"></i> Last 7 days <span style="font-size:11px;font-weight:400;">· raised vs closed · click a bar for the list</span></div><div id="iss-week-chart"></div></div>
+        </div>
       </div>
 
-      
       <div class="card"><div class="card-title"><i class="ti ti-table"></i> Issue Detail <span style="font-size:11px;font-weight:400;">· one row per project · click + to see its issues</span>
   <span style="margin-left:auto;display:flex;gap:8px;"><button class="pe-clr-btn" onclick="issExpandAll()"><i class="ti ti-square-plus" style="font-size:12px;"></i> Expand all</button><button class="pe-clr-btn" onclick="issCollapseAll()"><i class="ti ti-square-minus" style="font-size:12px;"></i> Collapse all</button></span></div>
         <div class="table-wrap" style="max-height:70vh;overflow:auto;"><table><thead id="iss-head"></thead><tbody id="iss-body"></tbody></table></div></div>
-      
+
     </div>
   </div>
 
@@ -7854,6 +7858,52 @@ function buildISS(){
 function issToggleProj(i){const p=(window._issProjList||[])[i];if(!p)return;if(_issExp.has(p.pid))_issExp.delete(p.pid);else _issExp.add(p.pid);renderISSDetail();}
 function issExpandAll(){(window._issProjList||[]).forEach(p=>_issExp.add(p.pid));renderISSDetail();}
 function issCollapseAll(){_issExp.clear();renderISSDetail();}
+
+
+ // Charts for the Issue Tracker tab: city-wise raised vs closed (under Category-wise) and last 7 days raised vs closed (under PM-wise)
+function issCharts(rows){
+  const RC='var(--iss-raised,#4f8ef7)',CC='#34c98a';
+  const dayOf=d=>d?new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime():null;
+  const esc1=s=>String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  const legend=(a,b)=>`<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:10px;"><span><span style="color:${RC};">●</span> Raised <b style="color:var(--text);">${a}</b></span><span><span style="color:${CC};">●</span> Closed <b style="color:var(--text);">${b}</b></span></div>`;
+
+  // ---- 1) city-wise: escalated (raised) vs closed ----
+  const byC={};rows.forEach(r=>{const c=(r.city&&r.city!=='—')?r.city:'Unknown';(byC[c]=byC[c]||[]).push(r);});
+  const cs=Object.entries(byC).sort((a,b)=>b[1].length-a[1].length);
+  const cmax=Math.max(1,...cs.map(([,l])=>l.length));
+  const totR=rows.length,totC=rows.filter(r=>r.status==='Completed').length;
+  const bar=(n,col)=>`<div style="height:8px;border-radius:4px;background:${n?col:'var(--border2)'};width:${n?Math.max(3,Math.round(n/cmax*100)):1}%;"></div>`;
+  const cityHtml=legend(totR,totC)+(cs.length?cs.map(([c,l])=>{
+    const dn=l.filter(r=>r.status==='Completed');
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+      <div style="width:88px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc1(c)}">${pemrEsc(c)}</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+        <div style="cursor:pointer;" onclick="issShowProjects('${esc1(c)} · Raised',${issReg(l)})">${bar(l.length,RC)}</div>
+        <div style="${dn.length?'cursor:pointer;':''}" ${dn.length?`onclick="issShowProjects('${esc1(c)} · Closed',${issReg(dn)})"`:''}>${bar(dn.length,CC)}</div>
+      </div>
+      <div style="min-width:74px;text-align:right;font-size:11px;"><b style="color:${RC};">${l.length}</b> <span style="color:var(--muted);">/</span> <b style="color:${CC};">${dn.length}</b></div>
+    </div>`;}).join(''):'<div class="empty" style="padding:14px;">No issues</div>');
+  const ce=document.getElementById('iss-city-chart');if(ce)ce.innerHTML=cityHtml;
+
+  // ---- 2) last 7 days (ending today): raised that day vs closed that day ----
+  const today=new Date();today.setHours(0,0,0,0);
+  const days=[];for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d);}
+  const H=96,data=days.map(d=>{const k=d.getTime();
+    return {d,k,raised:rows.filter(r=>dayOf(r.date)===k),closed:rows.filter(r=>r.status==='Completed'&&dayOf(r.endD)===k)};});
+  const wmax=Math.max(1,...data.map(x=>Math.max(x.raised.length,x.closed.length)));
+  const sR=data.reduce((s,x)=>s+x.raised.length,0),sC=data.reduce((s,x)=>s+x.closed.length,0);
+  const col=(l,color,lbl,x)=>{const n=l.length;
+    return `<div ${n?`onclick="issShowProjects('${lbl} · ${esc1(x.d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'}))}',${issReg(l)})"`:''} style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;${n?'cursor:pointer;':''}">
+      <span style="font-size:11px;font-weight:700;color:${n?'var(--text)':'var(--muted)'};">${n}</span>
+      <div style="width:17px;height:${n?Math.max(4,Math.round(n/wmax*H)):2}px;background:${n?color:'var(--border2)'};border-radius:4px 4px 0 0;"></div></div>`;};
+  const weekHtml=legend(sR,sC)+`<div style="display:flex;justify-content:space-between;gap:4px;">`+data.map(x=>{
+    const isToday=x.k===today.getTime();
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+      <div style="display:flex;align-items:flex-end;gap:4px;height:${H+20}px;">${col(x.raised,RC,'Raised',x)}${col(x.closed,CC,'Closed',x)}</div>
+      <div style="border-top:1px solid var(--border2);width:100%;text-align:center;padding-top:4px;${isToday?'color:var(--accent);':''}"><div style="font-size:11px;font-weight:600;">${x.d.toLocaleDateString('en-IN',{weekday:'short'})}</div><div style="font-size:10px;color:var(--muted);">${x.d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div></div>
+    </div>`;}).join('')+`</div>`;
+  const we=document.getElementById('iss-week-chart');if(we)we.innerHTML=weekHtml;
+}
 
 
 function renderISSDetail(){
