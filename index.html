@@ -720,6 +720,7 @@ tr.pmr-row-delay td.pmr-c0{box-shadow:inset 3px 0 0 #e74c3c;}
       <div class="pe-filter-group"><label>Size Category</label><div class="pov-ms" id="iss-ms-size"></div></div>
       <div class="pe-fdivider"></div>
       <div class="pe-filter-actions"><span class="spacer"></span><button class="pe-clr-btn" onclick="clearISSFilters()"><i class="ti ti-x" style="font-size:12px;"></i> Clear Filters</button></div>
+    </div>
     <div style="padding:16px 24px 24px;">
       <div class="section-title">Issue Tracker <span style="text-transform:none;font-weight:400;color:var(--muted);font-size:12px;margin-left:6px;">CT Daily Review Tracker · click any card / number for the project list</span></div>
       <div id="iss-note"></div>
@@ -7848,6 +7849,8 @@ function buildISS(){
     return `<tr><td style="color:var(--muted);">${i+1}</td><td style="font-weight:500;">${pemrEsc(pm)}</td>${numCell(l,nm+' — Total','var(--text)')}${numCell(ip,nm+' — In Process','#9b6dff')}${numCell(dn,nm+' — Completed','#34c98a')}${numCell(pn,nm+' — Pending','#f5a623')}<td style="text-align:right;color:var(--muted);">${l.length?Math.round(dn.length/l.length*100):0}%</td></tr>`;
   }).join('');
   document.getElementById('iss-pm').innerHTML=`<table style="font-size:12px;width:100%;"><thead><tr><th>#</th><th>PM</th><th style="text-align:right;">Total</th><th style="text-align:right;">In Process</th><th style="text-align:right;">Completed</th><th style="text-align:right;">Pending</th><th style="text-align:right;">Closure %</th></tr></thead><tbody>${pmRows||'<tr><td colspan="7" class="empty">No issues</td></tr>'}</tbody></table>`;
+
+  issCharts(rows);
 
   // detail table
     renderISSDetail();
