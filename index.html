@@ -8623,29 +8623,49 @@ function issCharts(rows){
  // ── Issue comments  (CT Daily Review Tracker · column AF "comment") ─────────────────────────────
 // Paste this whole block above  function renderISSDetail(){   (anywhere at script level works)
 
+// ── Issue comments  (CT Daily Review Tracker · column AF "comment") ─────────────────────────────
+// Paste this whole block above  function renderISSDetail(){   (anywhere at script level works)
+
 const ISS_LV_COL={PE:'#3bc0d8',PM:'#4f8ef7',CH:'#9b6dff',Central:'#e0518a'};
 
-// column AF = index 31; header named "comment…" is used first if the sheet has one
-function issCommentCol(){
-  const h=D.issue.h;
-  let i=issCol(h,['comment','comments','commentfield']);
-  if(i<0)i=h.findIndex(z=>issNorm(z).includes('comment'));
-  return i>=0?i:31;
+const ISS_COMMENT_COL=31;            // column AF of the CT Daily Review Tracker  (A=0 … Z=25, AA=26 … AF=31)
+const ISS_CM_NAME_FROM_MAIL=false;  // false: name from PE Master / Cred sheet, and from the mail id only when not found | true: always the mail-id name (Vikram.G)
+function issCommentCol(){return ISS_COMMENT_COL;}
+
+// mail id → display name:  vikram.g@solarsquare.in → "Vikram.G"
+function issNameFromMail(mail){
+  const loc=String(mail||'').split('@')[0].trim();
+  if(!loc)return 'Unknown';
+  return loc.split('.').map(w=>w?w.charAt(0).toUpperCase()+w.slice(1):w).join('.');
 }
 
 // "mail : 23-Oct-2026 06:54 PM (text)"  – one or many entries (new lines allowed inside the text)
 function issParseComments(raw){
-  const txt=String(raw==null?'':raw).replace(/\r/g,'').trim();
+  const txt=String(raw==null?'':raw).replace(/[\u00A0\u2007\u202F\u200B\uFEFF]/g,' ').replace(/\r/g,'').trim();
   if(!txt)return [];
   const re=/([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+)\s*:\s*(\d{1,2}-[A-Za-z]{3,9}-\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?\s*[AaPp][Mm])?)\s*\(/g;
   const st=[];let m;
   while((m=re.exec(txt))!==null)st.push({i:m.index,end:re.lastIndex,mail:m[1],date:m[2]});
-  if(!st.length)return [{mail:'',date:'',text:txt}];                       // not in the usual format → show as it is
-  return st.map((s,k)=>{
+  if(st.length)return st.map((s,k)=>{
     let t=txt.slice(s.end,k+1<st.length?st[k+1].i:txt.length).trim();
     if(t.endsWith(')'))t=t.slice(0,-1).trim();
     return {mail:s.mail,date:s.date,text:t};
   });
+  // second chance: a line that starts with a mail id (date / brackets missing or written differently)
+  const out=[];
+  txt.split('\n').forEach(line=>{
+    const l=line.trim();if(!l)return;
+    const a=l.match(/^([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+)\s*[:\-–]\s*(.*)$/);
+    if(a){
+      let rest=a[2],date='';
+      const d=rest.match(/^(\d{1,2}-[A-Za-z]{3,9}-\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?\s*[AaPp][Mm])?)\s*[:\-–]?\s*(.*)$/);
+      if(d){date=d[1];rest=d[2];}
+      rest=rest.replace(/^\(/,'').replace(/\)$/,'').trim();
+      out.push({mail:a[1],date,text:rest});
+    }else if(out.length)out[out.length-1].text+='\n'+l;      // continuation line of the previous comment
+    else out.push({mail:'',date:'',text:l});
+  });
+  return out.length?out:[{mail:'',date:'',text:txt}];
 }
 
 function issCmDate(s){
@@ -8691,10 +8711,9 @@ function issShowComments(id,no){
   const E=pemrEsc,people=issPeopleMap();
   const items=issParseComments(r.raw[issCommentCol()]).map((c,i)=>({c,i,dt:issCmDate(c.date)}));
   items.sort((a,b)=>((b.dt?b.dt.d.getTime():-1)-(a.dt?a.dt.d.getTime():-1))||(b.i-a.i));           // latest on top
-  const pretty=s=>s.replace(/[._]+/g,' ').replace(/\b\w/g,x=>x.toUpperCase());
   const cards=items.map(({c,dt})=>{
     const P=people[(c.mail||'').toLowerCase()]||{};
-    const name=P.name||(c.mail?pretty(c.mail.split('@')[0]):'Unknown');
+    const name=(ISS_CM_NAME_FROM_MAIL||!P.name)?issNameFromMail(c.mail):P.name;
     let level=P.level||'';
     if(!level){const nm=name.toLowerCase();if(r.pe&&nm===String(r.pe).toLowerCase())level='PE';else if(r.pm&&nm===String(r.pm).toLowerCase())level='PM';}
     const col=ISS_LV_COL[level]||'#8b92b0';
@@ -8717,7 +8736,7 @@ function issShowComments(id,no){
   pmvModal(`<div class="pmr-modal" style="max-width:680px;max-height:90vh;display:flex;flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
       <div><div style="font-size:15px;font-weight:600;">Comments — ${E(r.name)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="badge bgr">Issue ${no||''}</span><span>${E(r.pid)}</span><span>· ${items.length} comment${items.length===1?'':'s'} · latest first</span><span class="badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}55;">${E(r.status)}</span></div></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="badge bgr">Issue ${no||''}</span><span>${E(r.pid)}</span><span>· ${items.length} comment${items.length===1?'':'s'} · latest first · column AF</span><span class="badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}55;">${E(r.status)}</span></div></div>
       <button onclick="pemrCloseDay()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
     </div>
     ${r.desc?`<div style="font-size:12px;color:var(--muted);background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:4px;"><b style="color:var(--text);">Issue:</b> ${E(r.desc)}</div>`:''}
