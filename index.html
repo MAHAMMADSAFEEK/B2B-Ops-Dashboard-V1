@@ -1043,6 +1043,16 @@ tr.pmr-row-delay td.pmr-c0::after,tr.pmr-row-delay td.pmr-c1::after,tr.pmr-row-d
 [data-theme="light"] .pmr-dl::before{background:#d93a2b;}
 tr.pmr-row-dl>td{height:60px;}                  /* delayed rows get a little height so the badge never touches the PE name */
 
+  /* ---------- Project Summary: blinking "Project status" badge in the info bar ---------- */
+.proj-info-bar .ps-blink{display:inline-flex;align-items:center;gap:6px;padding:3px 11px 3px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;
+  color:var(--pc,#4f8ef7);background:color-mix(in srgb,var(--pc,#4f8ef7) 16%,transparent);border:1px solid color-mix(in srgb,var(--pc,#4f8ef7) 50%,transparent);
+  animation:psGlow 1.4s ease-in-out infinite;}
+.proj-info-bar .ps-blink::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--pc,#4f8ef7);animation:psDot 1.4s ease-in-out infinite;}
+@keyframes psGlow{0%,100%{box-shadow:0 0 0 0 transparent;background:color-mix(in srgb,var(--pc,#4f8ef7) 10%,transparent);}
+  50%{box-shadow:0 0 12px 1px color-mix(in srgb,var(--pc,#4f8ef7) 60%,transparent);background:color-mix(in srgb,var(--pc,#4f8ef7) 26%,transparent);}}
+@keyframes psDot{0%,100%{opacity:.3;transform:scale(.75);}50%{opacity:1;transform:scale(1.2);}}
+[data-theme="light"] .proj-info-bar .ps-blink{color:color-mix(in srgb,var(--pc,#2f5fd0) 65%,#0f1a44);}
+
 </style>
 </head>
 <body>
@@ -2584,6 +2594,8 @@ let completedPctSum=0;
   infoBar.style.display='flex';
   const _cap=leadRow?lv(leadRow,LEAD_COL.SIZE):'',_pe=leadRow?lv(leadRow,LEAD_COL.PE):'',_pm=leadRow?lv(leadRow,LEAD_COL.CITYMGR):'',_ch=leadRow?lv(leadRow,LEAD_COL.CLUSTER):'';
   const _nm=n=>n?`<strong>${n}</strong>`:'<strong style="color:#e74c3c;">Not assigned</strong>';
+  const _psTag=leadRow?povProjectStatuses(leadRow)[0]:'';
+  const _psCol=(typeof STAGE_STATUS_COLORS!=='undefined'&&STAGE_STATUS_COLORS[_psTag])||'#8b92b0';
   infoBar.innerHTML=`
     <span><strong>${projName}</strong></span>
     <span>ID: <strong>${projId}</strong></span>
@@ -2594,6 +2606,7 @@ let completedPctSum=0;
     <span>Attendance entries: <strong>${attRowsForProj.length}</strong></span>
     <span>Unique IDs tracked: <strong>${uniqueIdsForProj.size}</strong></span>
     <span>DPR records: <strong>${dprForProj.length}</strong></span>
+    ${_psTag?`<span>Project status: <span class="ps-blink" style="--pc:${_psCol};">${pemrEsc(_psTag)}</span></span>`:''}
   `;
   document.getElementById('proj-summary-area').style.display='block';
   document.getElementById('proj-empty').style.display='none';
